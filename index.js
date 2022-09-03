@@ -1,41 +1,45 @@
 // Require the necessary discord.js classes
-const fs = require('node:fs');
+const fs = require("node:fs");
 const {
     Client,
     Collection,
     Intents
-} = require('discord.js');
+} = require("discord.js");
 const {
     log
-} = require('node:console');
+} = require("node:console");
 
 const {
     MongoClient
-} = require('mongodb');
+} = require("mongodb");
 const {
     LOADIPHLPAPI
-} = require('node:dns');
+} = require("node:dns");
+
+const {
+    MessageEmbed
+} = require("discord.js");
 
 const token = process.env.PINGBOTTOKEN;
 
 const dbClient = new MongoClient(process.env.MongoClient);
 
+const exportedCommands = require("./deploy-commands.js");
 
 // Create a new client instance Discord.js
 const client = new Client({
-    intents: ["GUILDS", "GUILD_MESSAGES", "DIRECT_MESSAGES"]
+    intents: ["GUILDS", "GUILD_MESSAGES", "DIRECT_MESSAGES"],
 });
 
 client.commands = new Collection();
 
 // When the client is ready, run this code (only once) Discord.js
-client.once('ready', () => {
-    console.log('Ready from discord.js!');
+client.once("ready", () => {
+    console.log("Ready from discord.js!");
     client.user.setActivity("Friends", {
-        type: "WATCHING"
+        type: "WATCHING",
     });
 });
-
 
 client.on("messageCreate", (message) => {
     if (message.author.bot) return false;
@@ -43,16 +47,38 @@ client.on("messageCreate", (message) => {
 
 async function findUsers(guild, user) {
     try {
-        return await dbClient.db('Ping-Bot').collection(guild).findOne({
-            id: user
+        return await dbClient.db("Ping-Bot").collection(guild).findOne({
+            id: user,
         });
     } catch (error) {
         console.error(error);
-        // throw(new Error('Couldn\'t find users'));
     }
 }
 
 async function updateUsers(guild, user, newUsers) {
+    // finds and updates users to ping
+    let replaced = await dbClient
+        .db("Ping-Bot")
+        .collection(guild)
+        .updateOne({
+            id: user.id,
+        }, {
+            $set: {
+                pingUsers: newUsers,
+            },
+        });
+    // if replace returns error, creates document
+    if (replaced.matchedCount < 1) {
+        return await dbClient
+            .db("Ping-Bot")
+            .collection(guild)
+            .insertOne({
+                id: user.id,
+                pingUsers: newUsers,
+                message: `User ${user.username} is in the call`,
+            });
+    } else return replaced;
+
     //**************************** Tried to check for bots here *******************
 
     // newUsers.forEach(user => {
@@ -69,27 +95,20 @@ async function updateUsers(guild, user, newUsers) {
     // })
 
     //********************************************************************* */
-
-    // trys to find & replace existing ping users 
-    let replaced = await dbClient.db('Ping-Bot').collection(guild).replaceOne({
-        id: user
-    }, {
-        id: user,
-        pingUsers: newUsers
-    });
-    console.log(replaced);
-    // if replace returns error, creates document
-    if (!replaced.upsertedId) {
-        return await dbClient.db('Ping-Bot').collection(guild).insertOne({
-            id: user,
-            pingUsers: newUsers
-        });
-    } else
-        return replaced;
 }
 
-async function fetchUser(user) {
-    return await client.users.fetch(user);
+async function updateUserMessage(guild, user, newMessage) {
+    let replaced = await dbClient
+        .db("Ping-Bot")
+        .collection(guild)
+        .updateOne({
+            id: user.id,
+        }, {
+            $set: {
+                message: `From User ${user.username}: ${newMessage}`,
+            },
+        });
+        return replaced;
 }
 async function databaseConnect() {
     await dbClient.connect();
@@ -98,14 +117,14 @@ async function closeDatabase() {
     await dbClient.close();
 }
 //	Discord.js
-client.on('interactionCreate', async interaction => {
+client.on("interactionCreate", async (interaction) => {
     //  ************************ connect to database ************************
     try {
         await databaseConnect();
     } catch (error) {
         interaction.reply({
             content: "Error connecting to database. Try again later",
-            ephemeral: true
+            ephemeral: true,
         });
     }
 
@@ -115,72 +134,94 @@ client.on('interactionCreate', async interaction => {
         commandName
     } = interaction;
 
-    if (commandName === 'ping') {
+    if (commandName === "ping") {
         try {
             let usersArr = await findUsers(interaction.guildId, interaction.user.id);
             //iterates through all the users to be pinged
             if (usersArr) {
-                usersArr.pingUsers.forEach(elem => {
+                usersArr.pingUsers.forEach((elem) => {
                     new Promise((resolve) => {
                             // Finds their DM address
                             resolve(client.users.fetch(elem));
-                        }).then((user) => {
+                        })
+                        .then((user) => {
                             if (!user.bot) {
-                                user.send(`${interaction.user.username} is currently in the call!`);
-                            } else {
-                                interaction.reply({
-                                    content: "You can't ping a bot!",
-                                    ephemeral: true
-                                });
-                                throw (new Error('Tryed to ping a bot'));
+                                user.send(
+                                    `${interaction.user.username} is currently in the call!`
+                                );
                             }
                         })
                         .catch((error) => {
-                            console.error(error)
-                        })
-                        .then(() => {
+                            console.error("Caught error when sending.", error);
+                            console.error(error);
                             interaction.reply({
-                                content: 'Sent!',
-                                ephemeral: true
+                                content: "Error: " + error,
+                                ephemeral: true,
                             });
-                        })
-
-                })
+                        });
+                });
+                interaction.reply({
+                    content: "Sent!",
+                    ephemeral: true,
+                });
             } else {
                 interaction.reply({
-                    content: 'No users to ping!. Create one using /ping-edit',
-                    ephemeral: true
-                })
+                    content: "No users to ping!. Create one using /ping-edit",
+                    ephemeral: true,
+                });
             }
         } catch (error) {
             interaction.reply({
-                content: 'Error Pinging. Try again later.' + error,
-                ephemeral: true
+                content: "Error Pinging. Try again later." + error,
+                ephemeral: true,
             });
         }
-    } else if (commandName === 'ping-edit') {
-        let message = interaction.options._hoistedOptions[0].value;
-        let usersArr = message.split('>').map(elem => {
-            return elem.trim().slice(3);
-        });
+    } else if (commandName === "ping-edit") {
+        let message = interaction.options._hoistedOptions[0].value,
+            usersArr = message.split(">").map((elem) => {
+                return elem.trim().slice(3);
+            });
         usersArr.splice(-1, 1);
-        await updateUsers(interaction.guildId, interaction.user.id, usersArr)
-            .then(() => interaction.reply({
-                content: 'Updated users!',
-                ephemeral: true
-            }))
-
-
-
-    } else if (commandName === 'ping-help') {
-        const message = interaction.options.getString('message');
-        interaction.reply(message);
+        await updateUsers(interaction.guildId, interaction.user, usersArr).then(
+            () =>
+            interaction.reply({
+                content: "Updated users!",
+                ephemeral: true,
+            })
+        );
+    } else if (commandName === "ping-help") {
+        const help = new MessageEmbed()
+            .setColor("#f1f1f1")
+            .setTitle(`All Commands`);
+        // .setDescription("For the past 5 games.")
+        exportedCommands.forEach((command) => {
+            help.addFields({
+                name: "/" + command.name,
+                value: command.description,
+            });
+        });
+        interaction.reply({
+            embeds: [help],
+        });
+    } else if (commandName === "ping-message") {
+        let newMessage = interaction.options._hoistedOptions[0].value; // Message stored as option string
+        await updateUserMessage(interaction.guildId, interaction.user, newMessage) // update's message
+            .then(() => {
+                interaction.reply({
+                    content: "Message Updated.",
+                    ephemeral: true,
+                });
+            })
+            .catch((err) => {
+                interaction.reply({
+                    content: "Error occured when updating: " + err,
+                    ephemeral: true,
+                });
+            });
     }
 
-    // ************************ close database ************************
-    await closeDatabase();
+    await closeDatabase(); // closes database
 });
-
 
 // Login to Discord with your client's token
 client.login(token);
