@@ -1,1 +1,1 @@
-worker: sh -c "npm deploy && npm start"
+worker: sh -c "npm run deploy && npm start"
