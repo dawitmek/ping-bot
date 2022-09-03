@@ -139,6 +139,9 @@ client.on("interactionCreate", async (interaction) => {
             let usersArr = await findUsers(interaction.guildId, interaction.user.id);
             //iterates through all the users to be pinged
             if (usersArr) {
+                let userMessage = await dbClient.db('Ping-Bot').collection(interaction.guildId).findOne({
+                    id: interaction.user.id
+                })
                 usersArr.pingUsers.forEach((elem) => {
                     new Promise((resolve) => {
                             // Finds their DM address
@@ -147,7 +150,7 @@ client.on("interactionCreate", async (interaction) => {
                         .then((user) => {
                             if (!user.bot) {
                                 user.send(
-                                    `${interaction.user.username} is currently in the call!`
+                                    userMessage.message
                                 );
                             }
                         })
