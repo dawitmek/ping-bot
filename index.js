@@ -1,29 +1,9 @@
 // Require the necessary discord.js classes
-const fs = require("node:fs");
-const {
-    Client,
-    Collection,
-    Intents
-} = require("discord.js");
-const {
-    log
-} = require("node:console");
-
-const {
-    MongoClient
-} = require("mongodb");
-const {
-    LOADIPHLPAPI
-} = require("node:dns");
-
-const {
-    MessageEmbed
-} = require("discord.js");
-
+const { Client, Collection, Intents } = require("discord.js");
+const { MongoClient } = require("mongodb");
+const { MessageEmbed } = require("discord.js");
 const token = process.env.PINGBOTTOKEN;
-
 const dbClient = new MongoClient(process.env.MongoClient);
-
 const exportedCommands = require("./deploy-commands.js");
 
 // Create a new client instance Discord.js
@@ -60,13 +40,16 @@ async function updateUsers(guild, user, newUsers) {
     let replaced = await dbClient
         .db("Ping-Bot")
         .collection(guild)
-        .updateOne({
-            id: user.id,
-        }, {
-            $set: {
-                pingUsers: newUsers,
+        .updateOne(
+            {
+                id: user.id,
             },
-        });
+            {
+                $set: {
+                    pingUsers: newUsers,
+                },
+            }
+        );
     // if replace returns error, creates document
     if (replaced.matchedCount < 1) {
         return await dbClient
@@ -101,14 +84,17 @@ async function updateUserMessage(guild, user, newMessage) {
     let replaced = await dbClient
         .db("Ping-Bot")
         .collection(guild)
-        .updateOne({
-            id: user.id,
-        }, {
-            $set: {
-                message: `From User ${user.username}: ${newMessage}`,
+        .updateOne(
+            {
+                id: user.id,
             },
-        });
-        return replaced;
+            {
+                $set: {
+                    message: `From User ${user.username}: ${newMessage}`,
+                },
+            }
+        );
+    return replaced;
 }
 async function databaseConnect() {
     await dbClient.connect();
@@ -130,28 +116,27 @@ client.on("interactionCreate", async (interaction) => {
 
     if (!interaction.isCommand()) return;
 
-    const {
-        commandName
-    } = interaction;
+    const { commandName } = interaction;
 
     if (commandName === "ping") {
         try {
             let usersArr = await findUsers(interaction.guildId, interaction.user.id);
             //iterates through all the users to be pinged
             if (usersArr) {
-                let userMessage = await dbClient.db('Ping-Bot').collection(interaction.guildId).findOne({
-                    id: interaction.user.id
-                })
+                let userMessage = await dbClient
+                    .db("Ping-Bot")
+                    .collection(interaction.guildId)
+                    .findOne({
+                        id: interaction.user.id,
+                    });
                 usersArr.pingUsers.forEach((elem) => {
                     new Promise((resolve) => {
-                            // Finds their DM address
-                            resolve(client.users.fetch(elem));
-                        })
+                        // Finds their DM address
+                        resolve(client.users.fetch(elem));
+                    })
                         .then((user) => {
                             if (!user.bot) {
-                                user.send(
-                                    userMessage.message
-                                );
+                                user.send(userMessage.message);
                             }
                         })
                         .catch((error) => {
@@ -185,12 +170,13 @@ client.on("interactionCreate", async (interaction) => {
                 return elem.trim().slice(3);
             });
         usersArr.splice(-1, 1);
+        // TODO: Add roles search
         await updateUsers(interaction.guildId, interaction.user, usersArr).then(
             () =>
-            interaction.reply({
-                content: "Updated users!",
-                ephemeral: true,
-            })
+                interaction.reply({
+                    content: "Updated users!",
+                    ephemeral: true,
+                })
         );
     } else if (commandName === "ping-help") {
         const help = new MessageEmbed()
