@@ -130,9 +130,9 @@ client.on("interactionCreate", async (interaction) => {
                         id: interaction.user.id,
                     });
                 usersArr.pingUsers.forEach((elem) => {
-                    new Promise((resolve) => {
+                    new Promise(async (resolve) => {
                         // Finds their DM address
-                        resolve(client.users.fetch(elem));
+                        resolve(client.users.fetch(elem.toString()));
                     })
                         .then((user) => {
                             if (!user.bot) {
@@ -141,17 +141,22 @@ client.on("interactionCreate", async (interaction) => {
                         })
                         .catch((error) => {
                             console.error("Caught error when sending.", error);
-                            console.error(error);
                             interaction.reply({
                                 content: "Error: " + error,
                                 ephemeral: true,
                             });
                         });
                 });
-                interaction.reply({
-                    content: "Sent!",
-                    ephemeral: true,
-                });
+                try {
+                    interaction.reply({
+                        content: "Sent!",
+                        ephemeral: true,
+                    }).catch((err) => {
+                        console.error("Reply caught", err)
+                    });
+                } catch (error) {
+                    console.error("Reply caught", error);
+                }
             } else {
                 interaction.reply({
                     content: "No users to ping!. Create one using /ping-edit",
@@ -167,7 +172,7 @@ client.on("interactionCreate", async (interaction) => {
     } else if (commandName === "ping-edit") {
         let message = interaction.options._hoistedOptions[0].value,
             usersArr = message.split(">").map((elem) => {
-                return elem.trim().slice(3);
+                return elem.trim().slice(2);
             });
         usersArr.splice(-1, 1);
         // TODO: Add roles search
