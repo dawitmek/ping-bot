@@ -106,28 +106,44 @@ async function closeDatabase() {
 //	Discord.js
 client.on("interactionCreate", async (interaction) => {
     //  ************************ connect to database ************************
-    try {
-        await databaseConnect();
-    } catch (error) {
-        interaction.reply({
-            content: "Error connecting to database. Try again later",
-            ephemeral: true,
-        });
-        console.error("DatabaseConnection Error: ", error);
-    }
+    // try {
+    //     await databaseConnect().catch(console.error("Error connecting to database. Try again later"));
+    // } catch (error) {
+    //     interaction.reply({
+    //         content: "Error connecting to database. Try again later",
+    //         ephemeral: true,
+    //     });
+    //     console.error("DatabaseConnection Error: ", error);
+    // }
 
     if (!interaction.isCommand()) return;
 
     const { commandName } = interaction;
 
     if (commandName === "ping") {
-        pingCommand(interaction);
+        
+        await databaseConnect()
+        .then(() => pingCommand(interaction))
+        .catch((err) => console.error("Database connection error: ", err));
+
     } else if (commandName === "ping-edit") {
-        pingEditCommand(interaction);
+
+        await databaseConnect()
+        .then(() => pingEditCommand(interaction))
+        .catch((err) => console.error("Database connection error: ", err))
+
     } else if (commandName === "ping-help") {
-        pingHelpCommand(interaction);
+        
+        await databaseConnect()
+        .then(() => pingHelpCommand(interaction))
+        .catch((err) => console.error("Database connection error: ", err))
+        
     } else if (commandName === "ping-message") {
-        await pingMessageCommand(interaction);
+        
+        await databaseConnect()
+        .then(async () => await pingMessageCommand(interaction))
+        .catch((err) => console.error("Database connection error: ", err))
+
     }
 
     try {
