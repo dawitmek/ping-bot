@@ -59,6 +59,7 @@ async function updateUsers(guild, user, newUsers) {
                 id: user.id,
                 pingUsers: newUsers,
                 message: `User ${user.username} is in the call`,
+                pinged_server: guild 
             });
     } else return replaced;
 
@@ -121,28 +122,28 @@ client.on("interactionCreate", async (interaction) => {
     const { commandName } = interaction;
 
     if (commandName === "ping") {
-        
+
         await databaseConnect()
-        .then(() => pingCommand(interaction))
-        .catch((err) => console.error("Database connection error: ", err));
+            .then(() => pingCommand(interaction))
+            .catch((err) => console.error("Database connection error: ", err));
 
     } else if (commandName === "ping-edit") {
 
         await databaseConnect()
-        .then(() => pingEditCommand(interaction))
-        .catch((err) => console.error("Database connection error: ", err))
+            .then(() => pingEditCommand(interaction))
+            .catch((err) => console.error("Database connection error: ", err))
 
     } else if (commandName === "ping-help") {
-        
+
         await databaseConnect()
-        .then(() => pingHelpCommand(interaction))
-        .catch((err) => console.error("Database connection error: ", err))
-        
+            .then(() => pingHelpCommand(interaction))
+            .catch((err) => console.error("Database connection error: ", err))
+
     } else if (commandName === "ping-message") {
-        
+
         await databaseConnect()
-        .then(async () => await pingMessageCommand(interaction))
-        .catch((err) => console.error("Database connection error: ", err))
+            .then(async () => await pingMessageCommand(interaction))
+            .catch((err) => console.error("Database connection error: ", err))
 
     }
 
@@ -204,7 +205,19 @@ async function pingCommand(interaction) {
                 })
                     .then((user) => {
                         if (!user.bot) {
-                            user.send(userMessage.message);
+                            console.log(interaction);
+                            user.send(
+                                {
+                                    embeds: [new MessageEmbed()
+                                        .setColor("#f1f1f1")
+                                        .setTitle(userMessage.message)
+                                        .setAuthor({
+                                            name: interaction.client.user.username,
+                                            iconURL: `https://cdn.discordapp.com/avatars/${interaction.client.user.id}/${interaction.client.user.avatar}`
+                                        })
+                                        .setDescription(" ")
+                                    ]
+                                });
                         }
                     })
                     .catch((error) => {
