@@ -268,14 +268,15 @@ async function pingEditCommand(interaction) {
     usersArr.splice(-1, 1);
     // TODO: Add roles search
     await updateUsers(interaction.guildId, interaction.user, usersArr).then(
-        () =>
-            interaction.deferReply({
+        async function () {
+            await interaction.deferReply({
                 ephemeral: true,
-            }),
-            interaction.editReply({
+            });
+            await interaction.editReply({
                 content: "Updated users!",
                 ephemeral: true,
             })
+        }
     );
 }
 
