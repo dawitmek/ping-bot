@@ -228,26 +228,35 @@ async function pingCommand(interaction) {
                     });
             });
             try {
-                await interaction.reply({
-                    content: "Sent!",
+                await interaction.deferReply({
                     ephemeral: true,
                 }).catch((err) => {
                     console.error(new Date().toLocaleString() + " Reply caught", err)
                 });
+                await interaction.editReply({
+                    content: "Sent!",
+                    ephemeral: true
+                })
             } catch (error) {
                 console.error(new Date().toLocaleString() + " Reply caught", error);
             }
         } else {
-            interaction.reply({
-                content: "No users to ping!. Create one using /ping-edit",
+            interaction.deferReply({
                 ephemeral: true,
             });
+            interaction.editReply({
+                content: "No users to ping!. Create one using /ping-edit",
+                ephemeral: true,
+            })
         }
     } catch (error) {
-        interaction.reply({
-            content: "Error Pinging. Try again later." + error,
+        interaction.deferReply({
             ephemeral: true,
         });
+        interaction.editReply({
+            content: "Error Pinging. Try again later." + error,
+            ephemeral: true
+        })
     }
 }
 
