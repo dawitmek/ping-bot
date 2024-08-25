@@ -15,7 +15,7 @@ client.commands = new Collection();
 
 // When the client is ready, run this code (only once) Discord.js
 client.once("ready", () => {
-    console.log(new Date().toLocalString() + " Ready from discord.js!");
+    console.log(new Date().toLocaleString() + " Ready from discord.js!");
     client.user.setActivity("Friends", {
         type: "WATCHING",
     });
@@ -232,10 +232,10 @@ async function pingCommand(interaction) {
                     content: "Sent!",
                     ephemeral: true,
                 }).catch((err) => {
-                    console.error(new Date().toLocalString() + " Reply caught", err)
+                    console.error(new Date().toLocaleString() + " Reply caught", err)
                 });
             } catch (error) {
-                console.error(new Date().toLocalString() + " Reply caught", error);
+                console.error(new Date().toLocaleString() + " Reply caught", error);
             }
         } else {
             interaction.reply({
