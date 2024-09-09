@@ -1,5 +1,5 @@
 // Require the necessary discord.js classes
-const { Client, Collection, Intents } = require("discord.js");
+const { Client, Collection, Intents, Guild, GuildChannel } = require("discord.js");
 const { MongoClient } = require("mongodb");
 const { MessageEmbed } = require("discord.js");
 const token = process.env.PINGBOTTOKEN;
@@ -59,7 +59,7 @@ async function updateUsers(guild, user, newUsers) {
                 id: user.id,
                 pingUsers: newUsers,
                 message: `User ${user.username} is in the call`,
-                pinged_server: guild 
+                pinged_server: guild
             });
     } else return replaced;
 
@@ -107,16 +107,6 @@ async function closeDatabase() {
 //	Discord.js
 client.on("interactionCreate", async (interaction) => {
     //  ************************ connect to database ************************
-    // try {
-    //     await databaseConnect().catch(console.error("Error connecting to database. Try again later"));
-    // } catch (error) {
-    //     interaction.reply({
-    //         content: "Error connecting to database. Try again later",
-    //         ephemeral: true,
-    //     });
-    //     console.error("DatabaseConnection Error: ", error);
-    // }
-
     if (!interaction.isCommand()) return;
 
     const { commandName } = interaction;
@@ -144,6 +134,10 @@ client.on("interactionCreate", async (interaction) => {
         await databaseConnect()
             .then(async () => await pingMessageCommand(interaction))
             .catch((err) => console.error("Database connection error: ", err))
+    } else if (commandName === "ping-check") {
+        await databaseConnect()
+            .then(async () => await pingCheckCommand(interaction))
+            .catch((err) => console.error("Database connection error: ", err))
 
     }
 
@@ -156,22 +150,35 @@ client.on("interactionCreate", async (interaction) => {
 
 async function pingMessageCommand(interaction) {
     let newMessage = interaction.options._hoistedOptions[0].value; // Message stored as option string
+    try {
+        await interaction.deferReply({
+            ephemeral: true,
+        });
+    } catch (error) {
+        console.log(new Date().toLocaleString() + " Error found during deferring reply: " + error);
+
+    }
     await updateUserMessage(interaction.guildId, interaction.user, newMessage) // update's message
-        .then(() => {
-            interaction.reply({
+        .then(async function () {
+
+
+            await interaction.editReply({
                 content: "Message Updated.",
-                ephemeral: true,
-            });
+                ephemeral: true
+            })
         })
-        .catch((err) => {
-            interaction.reply({
+        .catch(async function (err) {
+
+
+            await interaction.editReply({
                 content: "Error occured when updating: " + err,
-                ephemeral: true,
-            });
+                ephemeral: true
+            })
+
         });
 }
 
-function pingHelpCommand(interaction) {
+async function pingHelpCommand(interaction) {
     const help = new MessageEmbed()
         .setColor("#f1f1f1")
         .setTitle(`All Commands`);
@@ -180,15 +187,27 @@ function pingHelpCommand(interaction) {
         help.addFields({
             name: "/" + command.name,
             value: command.description,
+
         });
     });
-    interaction.reply({
-        embeds: [help],
+    await interaction.deferReply({
+        ephemeral: true,
     });
+
+    await interaction.editReply({
+        embeds: [help],
+        ephemeral: true
+    })
 }
 
 async function pingCommand(interaction) {
     try {
+        await interaction.deferReply({
+            ephemeral: true,
+        }).catch((err) => {
+            console.error(new Date().toLocaleString() + " Reply caught ", err)
+        });
+
         let usersArr = await findUsers(interaction.guildId, interaction.user.id);
         //iterates through all the users to be pinged
         if (usersArr) {
@@ -228,11 +247,7 @@ async function pingCommand(interaction) {
                     });
             });
             try {
-                await interaction.deferReply({
-                    ephemeral: true,
-                }).catch((err) => {
-                    console.error(new Date().toLocaleString() + " Reply caught", err)
-                });
+
                 await interaction.editReply({
                     content: "Sent!",
                     ephemeral: true
@@ -241,19 +256,16 @@ async function pingCommand(interaction) {
                 console.error(new Date().toLocaleString() + " Reply caught", error);
             }
         } else {
-            interaction.deferReply({
-                ephemeral: true,
-            });
-            interaction.editReply({
+            await interaction.editReply({
                 content: "No users to ping!. Create one using /ping-edit",
                 ephemeral: true,
             })
         }
     } catch (error) {
-        interaction.deferReply({
+        await interaction.deferReply({
             ephemeral: true,
         });
-        interaction.editReply({
+        await interaction.editReply({
             content: "Error Pinging. Try again later." + error,
             ephemeral: true
         })
@@ -278,6 +290,50 @@ async function pingEditCommand(interaction) {
             })
         }
     );
+}
+
+async function pingCheckCommand(interaction) {
+    let userID = interaction.user.id;
+    try {
+        await interaction.deferReply({
+            ephemeral: true,
+        });
+        let userList = await findUsers(interaction.guildId, userID);
+        if (userList) {
+            let messageEmbed = new MessageEmbed()
+                .setColor("#f1f1f1")
+                .setTitle("List of users waiting to be pinged!")
+
+            userList.pingUsers.forEach(async (userID) => {
+                // console.log((await interaction.guild.members.fetch(userID)).nickname)
+                let uname = await client.users.fetch(userID);
+
+                if (uname) {
+                    let guildname = (await interaction.guild.members.fetch(userID)).nickname
+                    messageEmbed.addFields({
+                        value: "Handle: " + uname.username,
+                        name: "Guild Name: " + guildname,
+                    })
+                }
+                await interaction.editReply({
+                    embeds: [messageEmbed],
+                    ephemeral: true,
+                })
+            });
+
+            await interaction.editReply({
+                embeds: [messageEmbed],
+                ephemeral: true,
+            })
+
+        } else {
+            await interaction.editReply({
+                content: "User not founds. Try to add users to ping then try again.",
+                ephemeral: true,
+            })
+        }
+    } catch (error) {
+    }
 }
 
 // Login to Discord with your client's token
