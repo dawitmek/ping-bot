@@ -8,7 +8,7 @@ const exportedCommands = require("./deploy-commands.js");
 
 // Create a new client instance Discord.js
 const client = new Client({
-    intents: ["GUILDS", "GUILD_MESSAGES", "DIRECT_MESSAGES"],
+    intents: ["GUILDS", "GUILD_MESSAGES", "DIRECT_MESSAGES", "GUILD_MEMBERS"],
 });
 
 client.commands = new Collection();
@@ -110,41 +110,41 @@ client.on("interactionCreate", async (interaction) => {
     if (!interaction.isCommand()) return;
 
     const { commandName } = interaction;
-
-    if (commandName === "ping") {
-
-        await databaseConnect()
-            .then(() => pingCommand(interaction))
-            .catch((err) => console.error("Database connection error: ", err));
-
-    } else if (commandName === "ping-edit") {
-
-        await databaseConnect()
-            .then(() => pingEditCommand(interaction))
-            .catch((err) => console.error("Database connection error: ", err))
-
-    } else if (commandName === "ping-help") {
-
-        await databaseConnect()
-            .then(() => pingHelpCommand(interaction))
-            .catch((err) => console.error("Database connection error: ", err))
-
-    } else if (commandName === "ping-message") {
-
-        await databaseConnect()
-            .then(async () => await pingMessageCommand(interaction))
-            .catch((err) => console.error("Database connection error: ", err))
-    } else if (commandName === "ping-check") {
-        await databaseConnect()
-            .then(async () => await pingCheckCommand(interaction))
-            .catch((err) => console.error("Database connection error: ", err))
-
-    }
-
     try {
-        await closeDatabase(); // closes database
+
+        switch (commandName) {
+            case "ping":
+                await databaseConnect()
+                    .then(() => pingCommand(interaction))
+                    .catch((err) => console.error("Database connection error: ", err));
+                break;
+            case "ping-edit":
+                await databaseConnect()
+                    .then(() => pingEditCommand(interaction))
+                    .catch((err) => console.error("Database connection error: ", err));
+                break;
+            case "ping-help":
+                await databaseConnect()
+                    .then(() => pingHelpCommand(interaction))
+                    .catch((err) => console.error("Database connection error: ", err));
+                break;
+            case "ping-message":
+                await databaseConnect()
+                    .then(async () => await pingMessageCommand(interaction))
+                    .catch((err) => console.error("Database connection error: ", err));
+                break;
+            case "ping-check":
+                await databaseConnect()
+                    .then(async () => await pingCheckCommand(interaction))
+                    .catch((err) => console.error("Database connection error: ", err));
+                break;
+            default:
+                console.log("Unknown command");
+        }
     } catch (err) {
         console.error("Error closing", err);
+    } finally {
+        await closeDatabase().catch(err => console.error("database closing error ", err)); // closes database
     }
 });
 
@@ -273,23 +273,60 @@ async function pingCommand(interaction) {
 }
 
 async function pingEditCommand(interaction) {
-    let message = interaction.options._hoistedOptions[0].value,
-        usersArr = message.split(">").map((elem) => {
-            return elem.trim().slice(2);
-        });
+    await interaction.deferReply({
+        ephemeral: true,
+    });
+
+    // TODO: validates the input to make sure the @ symbol is present 
+    let message = interaction.options._hoistedOptions[0].value;
+    usersArr = message.split(">").map((elem) => {
+        return elem.trim().slice(2);
+    });
     usersArr.splice(-1, 1);
-    // TODO: Add roles search
-    await updateUsers(interaction.guildId, interaction.user, usersArr).then(
-        async function () {
-            await interaction.deferReply({
-                ephemeral: true,
-            });
+
+
+    // searches if the user is a role
+    // else, updates DB as the users
+    if (usersArr.find((elem) => elem.includes("&")) != null) {
+
+        let currGuild = await client.guilds.fetch(interaction.guildId);
+        let memFetch = await currGuild.members.fetch();
+        // let listOfMembers = await currGuild.members.list();
+
+        let usrList;
+        usersArr.forEach(async function (elem) {
+            if (elem.includes("&")) {
+                let listMembers = interaction.guild.roles.cache.find((roles) => elem.substring(1) == roles.id).members
+
+                let usrIDList = listMembers.map(usr => usr.id);
+                usrList = usrIDList;
+                // console.log("list: " + usrList);
+                // console.log("Guild ID: " + interaction.guildId, "User: " + interaction.user);
+            }
+        })
+        await updateUsers(interaction.guildId, interaction.user, usrList).then(async function () {
+            console.log("-Updated the users successfully 1, \n-Will now send the reply and close the DB")
+
             await interaction.editReply({
                 content: "Updated users!",
                 ephemeral: true,
             })
         }
-    );
+        ).catch((err) => {
+            console.error("Error updating users", err);
+        });
+    } else {
+        await updateUsers(interaction.guildId, interaction.user, usersArr).then(
+            async function () {
+                console.log("-Updated the users successfully 2 , \n-Will now send the reply and close the DB")
+
+                await interaction.editReply({
+                    content: "Updated users!",
+                    ephemeral: true,
+                })
+            }
+        );
+    }
 }
 
 async function pingCheckCommand(interaction) {
