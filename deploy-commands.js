@@ -17,7 +17,11 @@ const commands = [
 			option.setName('edit-message')
 				.setDescription('Edits message the bot sends to users you ping')
 				.setRequired(true)),
-	new SlashCommandBuilder().setName('ping-check').setDescription('Check which users you have set to ping!')
+	new SlashCommandBuilder().setName('ping-check').setDescription('Check which users you have set to ping!'),
+	new SlashCommandBuilder().setName('ping-append').setDescription('Append new users to the existing list of users you ping!').addStringOption(option =>
+		option.setName('new-users')
+			.setDescription('New users to append to the list of users you ping. ONLY INCLUDE @\'s')
+			.setRequired(true)),
 ]
 	.map(command => command.toJSON());
 

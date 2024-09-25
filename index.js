@@ -138,6 +138,11 @@ client.on("interactionCreate", async (interaction) => {
                     .then(async () => await pingCheckCommand(interaction))
                     .catch((err) => console.error("Database connection error: ", err));
                 break;
+            case "ping-append":
+                await databaseConnect()
+                    .then(async () => await pingAppendCommand(interaction))
+                    .catch((err) => console.error("Database connection error: ", err));
+                break;
             default:
                 console.log("Unknown command");
         }
@@ -208,7 +213,7 @@ async function pingCommand(interaction) {
             console.error(new Date().toLocaleString() + " Reply caught ", err)
         });
 
-        let usersArr = await findUsers(interaction.guildId, interaction.user.id);
+        let tempArray = await findUsers(interaction.guildId, interaction.user.id);
         //iterates through all the users to be pinged
         if (usersArr) {
             let userMessage = await dbClient
@@ -279,32 +284,36 @@ async function pingEditCommand(interaction) {
 
     // TODO: validates the input to make sure the @ symbol is present 
     let message = interaction.options._hoistedOptions[0].value;
-    usersArr = message.split(">").map((elem) => {
+    let tempUsrArr = message.split(">").map((elem) => {
         return elem.trim().slice(2);
     });
-    usersArr.splice(-1, 1);
+    tempUsrArr.splice(-1, 1);
+    let usersArr = new Set(tempUsrArr);
 
 
     // searches if the user is a role
     // else, updates DB as the users
-    if (usersArr.find((elem) => elem.includes("&")) != null) {
+    if ([...usersArr].find((elem) => elem.includes("&")) != null) {
 
         let currGuild = await client.guilds.fetch(interaction.guildId);
         let memFetch = await currGuild.members.fetch();
         // let listOfMembers = await currGuild.members.list();
 
-        let usrList;
+        let usrList = new Set();
         usersArr.forEach(async function (elem) {
             if (elem.includes("&")) {
                 let listMembers = interaction.guild.roles.cache.find((roles) => elem.substring(1) == roles.id).members
 
-                let usrIDList = listMembers.map(usr => usr.id);
+                let usrIDList = new Set();
+                listMembers.map(usr => usrIDList.add(usr.id));
                 usrList = usrIDList;
                 // console.log("list: " + usrList);
                 // console.log("Guild ID: " + interaction.guildId, "User: " + interaction.user);
+            } else {
+                usrList.add(elem);
             }
         })
-        await updateUsers(interaction.guildId, interaction.user, usrList).then(async function () {
+        await updateUsers(interaction.guildId, interaction.user, [...usrList]).then(async function () {
             console.log("-Updated the users successfully 1, \n-Will now send the reply and close the DB")
 
             await interaction.editReply({
@@ -316,7 +325,7 @@ async function pingEditCommand(interaction) {
             console.error("Error updating users", err);
         });
     } else {
-        await updateUsers(interaction.guildId, interaction.user, usersArr).then(
+        await updateUsers(interaction.guildId, interaction.user, [...usersArr]).then(
             async function () {
                 console.log("-Updated the users successfully 2 , \n-Will now send the reply and close the DB")
 
@@ -341,16 +350,26 @@ async function pingCheckCommand(interaction) {
                 .setColor("#f1f1f1")
                 .setTitle("List of users waiting to be pinged!")
 
+                // TODO: Change so the users are sent at the same time
             userList.pingUsers.forEach(async (userID) => {
                 // console.log((await interaction.guild.members.fetch(userID)).nickname)
                 let uname = await client.users.fetch(userID);
 
                 if (uname) {
                     let guildname = (await interaction.guild.members.fetch(userID)).nickname
-                    messageEmbed.addFields({
-                        value: "Handle: " + uname.username,
-                        name: "Guild Name: " + guildname,
-                    })
+                    
+                    if (guildname == null) {
+                        messageEmbed.addFields({
+                            name: "Guild Name: No Guild Name Found",
+                            value: "Handle: " + uname.username,
+                        })
+                        
+                    } else {
+                        messageEmbed.addFields({
+                            name: "Guild Name: " + guildname,
+                            value: "Handle: " + uname.username,
+                        })
+                    }
                 }
                 await interaction.editReply({
                     embeds: [messageEmbed],
@@ -370,6 +389,139 @@ async function pingCheckCommand(interaction) {
             })
         }
     } catch (error) {
+    }
+}
+
+async function pingAppendCommand(interaction) {
+    let userID = interaction.user.id;
+    try {
+        await interaction.deferReply({
+            ephemeral: true,
+        });
+    } catch (err) {
+        console.error("Error deferring reply", err);
+    }
+    /**
+     * Pulls the users from the database
+     * Checks if there are any duplicates
+     * If not, $push into the database
+      */
+    try {
+        let message = interaction.options._hoistedOptions[0].value;
+        let tempUsrArr = message.split(">").map((elem) => {
+            return elem.trim().slice(2);
+        });
+        tempUsrArr.splice(-1, 1);
+
+        let arrOfUsers = new Set(tempUsrArr);
+
+        let dbDoc = await findUsers(interaction.guildId, interaction.user.id);
+        let prevUsers = dbDoc.pingUsers;
+
+        // Checks if there are roles included in the list of users
+        if ([...arrOfUsers].find((elem) => elem.includes("&")) != null) {
+
+            let currGuild = await client.guilds.fetch(interaction.guildId);
+            let memFetch = await currGuild.members.fetch();
+
+            let usrList = new Set();
+            [...arrOfUsers].forEach(async function (elem) {
+                if (elem.includes("&")) {
+                    let listMembers = interaction.guild.roles.cache.find((roles) => elem.substring(1) == roles.id).members
+                    listMembers.map(usr => usrList.add(usr.id));
+
+                } else {
+                    usrList.add(elem);
+                }
+            })
+
+            if (usrList && prevUsers) {
+                let allUsers = new Set([...usrList, ...prevUsers]);
+                let appended = await dbClient
+                    .db("Ping-Bot")
+                    .collection(interaction.guildId)
+                    .updateOne(
+                        {
+                            id: interaction.user.id,
+                        },
+                        {
+                            $set: {
+                                pingUsers: [...allUsers],
+                            },
+                        }
+                    );
+                if (appended.acknowledged) {
+                    interaction.editReply({
+                        content: "Appended users!",
+                        ephemeral: true,
+                    });
+                } else {
+                    console.error("Error appending users " + new Date().toLocaleString());
+                    interaction.editReply({
+                        content: "Something went wrong appending users.\nTry again later.",
+                        ephemeral: true,
+                    });
+                }
+
+            } else {
+                console.error("Issue fetching users with roles or fetching previous users " + new Date().toLocaleString());
+                console.error("Users with roles: ", usrList);
+                console.error("Previous users: ", prevUsers);
+
+                interaction.editReply({
+                    content: "Retreival of previous users failed.\nTry again later.",
+                    ephemeral: true,
+                })
+            }
+        } else {
+            // If no roles are included, then just append the users in the database
+            let allUsers;
+            if (prevUsers) {
+                allUsers = new Set([...prevUsers, ...arrOfUsers]);
+                let appended = await dbClient
+                    .db("Ping-Bot")
+                    .collection(interaction.guildId)
+                    .updateOne(
+                        {
+                            id: interaction.user.id,
+                        },
+                        {
+                            $set: {
+                                pingUsers: [...allUsers],
+                            },
+                        }
+                    );
+                if (appended.acknowledged) {
+                    interaction.editReply({
+                        content: "Appended users!",
+                        ephemeral: true,
+                    });
+                } else {
+                    console.error("Error appending users " + new Date().toLocaleString());
+                    interaction.editReply({
+                        content: "Something went wrong appending users.\nTry again later.",
+                        ephemeral: true,
+                    });
+                }
+            } else {
+                console.error("Issue retreiving previous users in database for appending " + new Date().toLocaleString());
+
+                interaction.editReply({
+                    content: "Retreival of previous users failed.\nTry again later.",
+                    ephemeral: true,
+                })
+            }
+        }
+    } catch (err) {
+        console.error("Error appending users", err);
+
+        try {
+            interaction.editReply({
+                content: "Error appending users.\nPlease try again later.",
+            })
+        } catch (error) {
+            console.error("Error editing reply", error);
+        }
     }
 }
 
