@@ -1,14 +1,20 @@
 // Require the necessary discord.js classes
-const { Client, Collection, Intents, Guild, GuildChannel } = require("discord.js");
+const { Client, Collection, Intents, Guild, GuildChannel, GatewayIntentBits } = require("discord.js");
 const { MongoClient } = require("mongodb");
-const { MessageEmbed } = require("discord.js");
+
 const token = process.env.PINGBOTTOKEN;
 const dbClient = new MongoClient(process.env.MongoClient);
 const exportedCommands = require("./deploy-commands.js");
+const { EmbedBuilder } = require("@discordjs/builders");
 
 // Create a new client instance Discord.js
 const client = new Client({
-    intents: ["GUILDS", "GUILD_MESSAGES", "DIRECT_MESSAGES", "GUILD_MEMBERS"],
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildMembers
+    ],
 });
 
 client.commands = new Collection();
@@ -184,8 +190,8 @@ async function pingMessageCommand(interaction) {
 }
 
 async function pingHelpCommand(interaction) {
-    const help = new MessageEmbed()
-        .setColor("#f1f1f1")
+    const help = new EmbedBuilder()
+        .setColor(0xf1f1f1)
         .setTitle(`All Commands`);
     // .setDescription("For the past 5 games.")
     exportedCommands.forEach((command) => {
@@ -213,7 +219,7 @@ async function pingCommand(interaction) {
             console.error(new Date().toLocaleString() + " Reply caught ", err)
         });
 
-        let tempArray = await findUsers(interaction.guildId, interaction.user.id);
+        let usersArr = await findUsers(interaction.guildId, interaction.user.id);
         //iterates through all the users to be pinged
         if (usersArr) {
             let userMessage = await dbClient
@@ -231,8 +237,9 @@ async function pingCommand(interaction) {
                         if (!user.bot) {
                             user.send(
                                 {
-                                    embeds: [new MessageEmbed()
-                                        .setColor("#f1f1f1")
+                                    embeds: [
+                                        new EmbedBuilder()
+                                        .setColor(0xf1f1f1)
                                         .setTitle(userMessage.message)
                                         .setAuthor({
                                             name: interaction.client.user.username,
@@ -267,11 +274,9 @@ async function pingCommand(interaction) {
             })
         }
     } catch (error) {
-        await interaction.deferReply({
-            ephemeral: true,
-        });
+        console.error("Error pinging: ", error);
         await interaction.editReply({
-            content: "Error Pinging. Try again later." + error,
+            content: "Error Pinging.\nTry again later." + error,
             ephemeral: true
         })
     }
@@ -346,24 +351,25 @@ async function pingCheckCommand(interaction) {
         });
         let userList = await findUsers(interaction.guildId, userID);
         if (userList) {
-            let messageEmbed = new MessageEmbed()
-                .setColor("#f1f1f1")
-                .setTitle("List of users waiting to be pinged!")
+            let messageEmbed = new EmbedBuilder()
+                .setColor(0xf1f1f1)
+                .setTitle("List of users waiting to be pinged!");
 
-                // TODO: Change so the users are sent at the same time
+            // TODO: Change so the users are sent at the same time
+
             userList.pingUsers.forEach(async (userID) => {
                 // console.log((await interaction.guild.members.fetch(userID)).nickname)
                 let uname = await client.users.fetch(userID);
 
                 if (uname) {
                     let guildname = (await interaction.guild.members.fetch(userID)).nickname
-                    
+
                     if (guildname == null) {
                         messageEmbed.addFields({
                             name: "Guild Name: No Guild Name Found",
                             value: "Handle: " + uname.username,
                         })
-                        
+
                     } else {
                         messageEmbed.addFields({
                             name: "Guild Name: " + guildname,
