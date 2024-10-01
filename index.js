@@ -379,52 +379,68 @@ async function pingCheckCommand(interaction) {
         await interaction.deferReply({
             ephemeral: true,
         });
+
         let userList = await findUsers(interaction.guildId, userID);
+
         if (userList) {
             let messageEmbed = new EmbedBuilder()
                 .setColor(0xf1f1f1)
                 .setTitle("List of users waiting to be pinged!");
+            let index = 0;
 
-            // TODO: Change so the users are sent at the same time
+            let arrLength = userList.pingUsers.length;
+            if (arrLength > 25) {
+                messageEmbed.setDescription(`The list of users is too long! \nWill only show 25 users. \n\n(Current Size: **${arrLength}**).\n\0`);
+            }
+            // Use a for...of loop to handle async operations properly
+            for (const userID of userList.pingUsers) {
+                try {
+                    let uname = await client.users.fetch(userID);
 
-            userList.pingUsers.forEach(async (userID) => {
-                // console.log((await interaction.guild.members.fetch(userID)).nickname)
-                let uname = await client.users.fetch(userID);
-
-                if (uname) {
-                    let guildname = (await interaction.guild.members.fetch(userID)).nickname
-
-                    if (guildname == null) {
-                        messageEmbed.addFields({
-                            name: "Guild Name: No Guild Name Found",
-                            value: "Handle: " + uname.username,
-                        })
-
-                    } else {
-                        messageEmbed.addFields({
-                            name: "Guild Name: " + guildname,
-                            value: "Handle: " + uname.username,
-                        })
+                    if (index >= 25) {
+                        break;
                     }
-                }
-                await interaction.editReply({
-                    embeds: [messageEmbed],
-                    ephemeral: true,
-                })
-            });
 
+                    if (uname) {
+                        let guildMember = await interaction.guild.members.fetch(userID);
+                        let guildname = guildMember.nickname;
+
+                        if (guildname == null) {
+                            messageEmbed.addFields({
+                                name: "Guild Name: No Guild Name Found",
+                                value: "Handle: " + uname.username,
+                            });
+                        } else {
+                            messageEmbed.addFields({
+                                name: "Guild Name: " + guildname,
+                                value: "Handle: " + uname.username,
+                            });
+                        }
+                    }
+                    index++;
+                } catch (error) {
+                    console.error(`Error fetching user with ID ${userID}:`, error);
+                    // Optionally, you can add a field to indicate an error occurred for this user
+                }
+            }
+
+            // After collecting all users, send the embed once
             await interaction.editReply({
                 embeds: [messageEmbed],
                 ephemeral: true,
-            })
-
+            });
         } else {
             await interaction.editReply({
-                content: "User not founds. Try to add users to ping then try again.",
+                content: "User not found. Try to add users to ping, then try again.",
                 ephemeral: true,
-            })
+            });
         }
     } catch (error) {
+        console.error('An error occurred:', error);
+        await interaction.editReply({
+            content: "An error occurred while processing your request.",
+            ephemeral: true,
+        });
     }
 }
 
