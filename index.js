@@ -239,13 +239,13 @@ async function pingCommand(interaction) {
                                 {
                                     embeds: [
                                         new EmbedBuilder()
-                                        .setColor(0xf1f1f1)
-                                        .setTitle(userMessage.message)
-                                        .setAuthor({
-                                            name: interaction.client.user.username,
-                                            iconURL: `https://cdn.discordapp.com/avatars/${interaction.client.user.id}/${interaction.client.user.avatar}`
-                                        })
-                                        .setDescription(" ")
+                                            .setColor(0xf1f1f1)
+                                            .setTitle(userMessage.message)
+                                            .setAuthor({
+                                                name: interaction.client.user.username,
+                                                iconURL: `https://cdn.discordapp.com/avatars/${interaction.client.user.id}/${interaction.client.user.avatar}`
+                                            })
+                                            .setDescription(" ")
                                     ]
                                 });
                         }
@@ -292,13 +292,43 @@ async function pingEditCommand(interaction) {
     let tempUsrArr = message.split(">").map((elem) => {
         return elem.trim().slice(2);
     });
+
+
     tempUsrArr.splice(-1, 1);
+
+    // Makes sure there are no duplicates users ID's in the array
     let usersArr = new Set(tempUsrArr);
 
 
     // searches if the user is a role
     // else, updates DB as the users
-    if ([...usersArr].find((elem) => elem.includes("&")) != null) {
+    if (message.includes('@everyone')) {
+        const guild = await client.guilds.fetch(interaction.guildId);
+        const members = await guild.members.fetch();
+
+        if (members) {
+            let usrIDList = new Set();
+            members.forEach(member => {
+                !member.user.bot ? usrIDList.add(member.id) : null;
+            })
+            await updateUsers(interaction.guildId, interaction.user, [...usrIDList]).then(async function () {
+                console.log("Added @everyone successfully")
+
+                await interaction.editReply({
+                    content: "Updated users!",
+                    ephemeral: true,
+                })
+            })
+        } else {
+            console.error("Unable to fetch members from guild using @everyone" + new Date().toLocaleString());
+
+            await interaction.editReply({
+                content: "Something went wrong. Please try again later.",
+                ephemeral: true,
+            })
+        }
+
+    } else if (message.includes("&")) {
 
         let currGuild = await client.guilds.fetch(interaction.guildId);
         let memFetch = await currGuild.members.fetch();
