@@ -22,6 +22,10 @@ const commands = [
 		option.setName('new-users')
 			.setDescription('New users to append to the list of users you ping. ONLY INCLUDE @\'s')
 			.setRequired(true)),
+	new SlashCommandBuilder().setName('ping-remove').setDescription('Append new users to the existing list of users you ping!').addStringOption(option =>
+		option.setName('usernames')
+			.setDescription('Users you would like to remove from your ping list. ONLY INCLUDE @\'s')
+			.setRequired(true)),
 ]
 	.map(command => command.toJSON());
 

@@ -149,6 +149,11 @@ client.on("interactionCreate", async (interaction) => {
                     .then(async () => await pingAppendCommand(interaction))
                     .catch((err) => console.error("Database connection error: ", err));
                 break;
+            case "ping-remove":
+                await databaseConnect()
+                    .then(async () => await pingRemoveCommand(interaction))
+                    .catch((err) => console.error("Database connection error: ", err));
+                break;
             default:
                 console.log("Unknown command");
         }
@@ -574,6 +579,79 @@ async function pingAppendCommand(interaction) {
         } catch (error) {
             console.error("Error editing reply", error);
         }
+    }
+}
+
+async function pingRemoveCommand(interaction) {
+    let userID = interaction.user.id;
+
+    try {
+        await interaction.deferReply({
+            ephemeral: true,
+        });
+    } catch (err) {
+        console.error("Error deferring reply", err);
+    }
+    /**
+     * Pulls the users from the database
+     * Checks if there are any duplicates
+     * If not, $push into the database
+      */
+    try {
+        let message = interaction.options._hoistedOptions[0].value;
+        let tempUsrArr = message.split(">").map((elem) => {
+            return elem.trim().slice(2);
+        });
+        tempUsrArr.splice(-1, 1);
+
+        let arrOfUsers = new Set(tempUsrArr);
+        let doc = await findUsers(interaction.guildId, interaction.user.id);
+        let prevUsers = new Set(await doc.pingUsers);
+        let foundUsers = new Set();
+
+        if (arrOfUsers.size == 1) {
+            if (prevUsers.delete([...arrOfUsers][0])) {
+                foundUsers.add(arrOfUsers[0]);
+            }
+        } else {
+            for (const user of arrOfUsers) {
+                if (prevUsers.delete(user)) {
+                    foundUsers.add(user);
+                }
+            }
+        }
+
+        if (foundUsers.size > 0) {
+            await dbClient
+                .db("Ping-Bot")
+                .collection(interaction.guildId)
+                .updateOne(
+                    {
+                        id: interaction.user.id,
+                    },
+                    {
+                        $set: {
+                            pingUsers: [...prevUsers],
+                        },
+                    }
+                );
+
+            await interaction.editReply({
+                content: "Removed users successfully! \n\nRun /ping-check to see the updated list.",
+                ephemeral: true,
+            });
+        } else {
+            await interaction.editReply({
+                content: "Users not found in the list. Try again.",
+                ephemeral: true,
+            });
+        }
+    } catch (err) {
+        console.error("Error removing users: ", err);
+        await interaction.editReply({
+            content: "An error has occured when processing your request.",
+            ephemeral: true,
+        });
     }
 }
 
