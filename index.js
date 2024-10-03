@@ -64,7 +64,7 @@ async function updateUsers(guild, user, newUsers) {
             .insertOne({
                 id: user.id,
                 pingUsers: newUsers,
-                message: `User ${user.username} is in the call`,
+                message: `User ${user.username} is pinging you!`,
                 pinged_server: guild
             });
     } else return replaced;
@@ -97,7 +97,7 @@ async function updateUserMessage(guild, user, newMessage) {
             },
             {
                 $set: {
-                    message: `From User ${user.username}: ${newMessage}`,
+                    message: `${user.username}: ${newMessage}`,
                 },
             }
         );
@@ -250,8 +250,8 @@ async function pingCommand(interaction) {
                                                 .setColor(0xf1f1f1)
                                                 .setTitle(userMessage.message)
                                                 .setAuthor({
-                                                    name: interaction.client.user.username,
-                                                    iconURL: `https://cdn.discordapp.com/avatars/${interaction.client.user.id}/${interaction.client.user.avatar}`
+                                                    name: user.globalName,
+                                                    iconURL: `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}`
                                                 })
                                                 .setDescription(" ")
                                         ]
@@ -396,7 +396,8 @@ async function pingCheckCommand(interaction) {
         if (userList) {
             let messageEmbed = new EmbedBuilder()
                 .setColor(0xf1f1f1)
-                .setTitle("List of users waiting to be pinged!");
+                .setTitle("List of users waiting to be pinged!")
+                .setFooter({text: "Current message: \n" + userList.message});
             let index = 0;
 
             let arrLength = userList.pingUsers.length;

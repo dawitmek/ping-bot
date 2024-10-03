@@ -5,7 +5,7 @@ const token = process.env.PINGBOTTOKEN;
 const clientId = process.env.PingClient;
 
 const commands = [
-	new SlashCommandBuilder().setName('ping').setDescription('Pings users that you are in the call. (Pinging bots will stop the pings)'),
+	new SlashCommandBuilder().setName('ping').setDescription('Sends a message to the users in your ping list'),
 	new SlashCommandBuilder().setName('ping-edit').setDescription('Edits collection of users')
 		.addStringOption(option =>
 			option.setName('add-users')
@@ -22,7 +22,7 @@ const commands = [
 		option.setName('new-users')
 			.setDescription('New users to append to the list of users you ping. ONLY INCLUDE @\'s')
 			.setRequired(true)),
-	new SlashCommandBuilder().setName('ping-remove').setDescription('Append new users to the existing list of users you ping!').addStringOption(option =>
+	new SlashCommandBuilder().setName('ping-remove').setDescription('Remove individual users from your ping list!').addStringOption(option =>
 		option.setName('usernames')
 			.setDescription('Users you would like to remove from your ping list. ONLY INCLUDE @\'s')
 			.setRequired(true)),
