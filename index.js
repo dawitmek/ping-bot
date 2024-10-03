@@ -240,19 +240,24 @@ async function pingCommand(interaction) {
                 })
                     .then((user) => {
                         if (!user.bot) {
-                            user.send(
-                                {
-                                    embeds: [
-                                        new EmbedBuilder()
-                                            .setColor(0xf1f1f1)
-                                            .setTitle(userMessage.message)
-                                            .setAuthor({
-                                                name: interaction.client.user.username,
-                                                iconURL: `https://cdn.discordapp.com/avatars/${interaction.client.user.id}/${interaction.client.user.avatar}`
-                                            })
-                                            .setDescription(" ")
-                                    ]
-                                });
+                            try {
+                                console.log("Sending message to user: ", user.username);
+                                user.send(
+                                    {
+                                        embeds: [
+                                            new EmbedBuilder()
+                                                .setColor(0xf1f1f1)
+                                                .setTitle(userMessage.message)
+                                                .setAuthor({
+                                                    name: interaction.client.user.username,
+                                                    iconURL: `https://cdn.discordapp.com/avatars/${interaction.client.user.id}/${interaction.client.user.avatar}`
+                                                })
+                                                .setDescription(" ")
+                                        ]
+                                    });
+                            } catch (err) {
+                                console.error("Error sending message to user: ", err);
+                            }
                         }
                     })
                     .catch((error) => {
@@ -266,7 +271,7 @@ async function pingCommand(interaction) {
             try {
 
                 await interaction.editReply({
-                    content: "Sent!",
+                    content: "Sent!\n\nIf a user did not receive the message, they may have DM's disabled.",
                     ephemeral: true
                 })
             } catch (error) {
