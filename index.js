@@ -233,14 +233,15 @@ async function pingCommand(interaction) {
                 .findOne({
                     id: interaction.user.id,
                 });
-            usersArr.pingUsers.forEach((elem) => {
-                new Promise(async (resolve) => {
-                    // Finds their DM address
-                    resolve(client.users.fetch(elem.toString()));
-                })
-                    .then((user) => {
-                        if (!user.bot) {
-                            try {
+            for (const elem of usersArr.pingUsers) {
+
+                try {
+                    new Promise(async (resolve) => {
+                        // Finds their DM address
+                        resolve(client.users.fetch(elem.toString()));
+                    })
+                        .then((user) => {
+                            if (!user.bot) {
                                 console.log("Sending message to user: ", user.username);
                                 user.send(
                                     {
@@ -255,19 +256,19 @@ async function pingCommand(interaction) {
                                                 .setDescription(" ")
                                         ]
                                     });
-                            } catch (err) {
-                                console.error("Error sending message to user: ", err);
                             }
-                        }
-                    })
-                    .catch((error) => {
-                        console.error("Caught error when sending.", error);
-                        interaction.reply({
-                            content: "Error: " + error,
-                            ephemeral: true,
+                        })
+                        .catch((error) => {
+                            console.error("Caught error when sending.", error);
+                            interaction.editReply({
+                                content: "Error: " + error,
+                                ephemeral: true,
+                            });
                         });
-                    });
-            });
+                } catch (err) {
+                    console.error(`Error sending message to user: ${elem} \n`, err);
+                }
+            }
             try {
 
                 await interaction.editReply({
