@@ -164,6 +164,12 @@ client.on("interactionCreate", async (interaction) => {
     }
 });
 
+async function sleep(ms) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
 async function pingMessageCommand(interaction) {
     let newMessage = interaction.options._hoistedOptions[0].value; // Message stored as option string
     try {
@@ -241,21 +247,56 @@ async function pingCommand(interaction) {
                         resolve(client.users.fetch(elem.toString()));
                     })
                         .then((user) => {
-                            if (!user.bot) {
-                                console.log("Sending message to user: ", user.username);
-                                user.send(
-                                    {
-                                        embeds: [
-                                            new EmbedBuilder()
-                                                .setColor(0xf1f1f1)
-                                                .setTitle(userMessage.message)
-                                                .setAuthor({
-                                                    name: user.globalName,
-                                                    iconURL: `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}`
-                                                })
-                                                .setDescription(" ")
-                                        ]
-                                    });
+                            // Checks if is within limit
+                            // if is within limit, proceed
+                            // if it's not within limit, timeout for 5 seconds then try again
+                            if (rateLimiterOK(interaction.user.id)) {
+                                try {
+                                    if (!user.bot) {
+                                        console.log("Sending message to user: ", user.username);
+                                        user.send(
+                                            {
+                                                embeds: [
+                                                    new EmbedBuilder()
+                                                        .setColor(0xf1f1f1)
+                                                        .setTitle(userMessage.message)
+                                                        .setAuthor({
+                                                            name: user.globalName,
+                                                            iconURL: `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}`
+                                                        })
+                                                        .setDescription(" ")
+                                                ]
+                                            });
+                                    }
+                                } catch (error) {
+                                    console.error("Caught error when sending before rate limit was hit: ", error);
+                                }
+                            } else {
+                                sleep(5000).then(() => {
+                                    try {
+                                        if (!user.bot) {
+                                            console.log("Sending message to user: ", user.username);
+                                            user.send(
+                                                {
+                                                    embeds: [
+                                                        new EmbedBuilder()
+                                                            .setColor(0xf1f1f1)
+                                                            .setTitle(userMessage.message)
+                                                            .setAuthor({
+                                                                name: user.globalName,
+                                                                iconURL: `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}`
+                                                            })
+                                                            .setDescription(" ")
+                                                    ]
+                                                });
+                                        }
+                                    } catch (error) {
+                                        console.error("Caught error when sending after rate limit was hit: ", error);
+                                    }
+                                }).catch((err) => {
+                                    console.error("Rate Limiter hit when sending message to user: ", err);
+                                    
+                                })
                             }
                         })
                         .catch((error) => {
@@ -291,6 +332,37 @@ async function pingCommand(interaction) {
             ephemeral: true
         })
     }
+}
+
+function rateLimiterOK(userID) {
+    const rateLimitMap = new Map(); // Keeps track of request counts per user
+    const limit = 50; // Request limit
+    const timeWindow = 1000; // Alowed time window is 1 second 
+
+    // Function to check if the user is within the limit
+    function isWithinLimit(userId, limit, timeWindow) {
+        const currentTime = Date.now();
+
+        // Get or initialize user's data
+        const userData = rateLimitMap.get(userId) || { count: 0, startTime: currentTime };
+
+        if (currentTime - userData.startTime < timeWindow) {
+            // If within time window, check count
+            if (userData.count < limit) {
+                userData.count++; // Increase request count
+                rateLimitMap.set(userId, userData); // Update user data
+                return true; // Request is allowed
+            } else {
+                return false; // Request limit exceeded
+            }
+        } else {
+            // If time window expired, reset counter
+            rateLimitMap.set(userId, { count: 1, startTime: currentTime });
+            return true; // Allow the request
+        }
+    }
+
+    return isWithinLimit(userID, limit, timeWindow);
 }
 
 async function pingEditCommand(interaction) {
@@ -397,7 +469,7 @@ async function pingCheckCommand(interaction) {
             let messageEmbed = new EmbedBuilder()
                 .setColor(0xf1f1f1)
                 .setTitle("List of users waiting to be pinged!")
-                .setFooter({text: "Current message: \n" + userList.message});
+                .setFooter({ text: "Current message: \n" + userList.message });
             let index = 0;
 
             let arrLength = userList.pingUsers.length;
