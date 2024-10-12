@@ -1,5 +1,5 @@
 // Require the necessary discord.js classes
-const { Client, Collection, Intents, Guild, GuildChannel, GatewayIntentBits } = require("discord.js");
+const { Client, Collection, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, WebhookClient } = require("discord.js");
 const { MongoClient } = require("mongodb");
 
 const token = process.env.PINGBOTTOKEN;
@@ -41,8 +41,20 @@ async function findUsers(guild, user) {
     }
 }
 
-async function updateUsers(guild, user, newUsers) {
+async function updateUsers(guild, user, newUsers, interaction) {
     // finds and updates users to ping
+
+    let userObj = new Map();
+    for (const user of newUsers) {
+        let userInfo = await interaction.guild.members.fetch({ user: user, force: true });
+
+        let userData = {
+            guildName: userInfo.nickname,
+            globalName: !userInfo.user.globalName ? userInfo.user.username : userInfo.user.globalName,
+        }
+        userObj.set(userInfo.id, userData);
+    }
+
     let replaced = await dbClient
         .db("Ping-Bot")
         .collection(guild)
@@ -52,7 +64,8 @@ async function updateUsers(guild, user, newUsers) {
             },
             {
                 $set: {
-                    pingUsers: newUsers,
+                    pingUsers: userObj,
+                    lastModified: new Date().toLocaleString(),
                 },
             }
         );
@@ -63,9 +76,9 @@ async function updateUsers(guild, user, newUsers) {
             .collection(guild)
             .insertOne({
                 id: user.id,
-                pingUsers: newUsers,
+                pingUsers: userObj,
                 message: `User ${user.username} is pinging you!`,
-                pinged_server: guild
+                lastModified: new Date().toLocaleString(),
             });
     } else return replaced;
 
@@ -111,59 +124,65 @@ async function closeDatabase() {
     await dbClient.close();
 }
 //	Discord.js
-client.on("interactionCreate", async (interaction) => {
-    //  ************************ connect to database ************************
-    if (!interaction.isCommand()) return;
+try {
 
-    const { commandName } = interaction;
-    try {
+    client.on("interactionCreate", async (interaction) => {
+        //  ************************ connect to database ************************
+        if (!interaction.isCommand()) return;
 
-        switch (commandName) {
-            case "ping":
-                await databaseConnect()
-                    .then(() => pingCommand(interaction))
-                    .catch((err) => console.error("Database connection error: ", err));
-                break;
-            case "ping-edit":
-                await databaseConnect()
-                    .then(() => pingEditCommand(interaction))
-                    .catch((err) => console.error("Database connection error: ", err));
-                break;
-            case "ping-help":
-                await databaseConnect()
-                    .then(() => pingHelpCommand(interaction))
-                    .catch((err) => console.error("Database connection error: ", err));
-                break;
-            case "ping-message":
-                await databaseConnect()
-                    .then(async () => await pingMessageCommand(interaction))
-                    .catch((err) => console.error("Database connection error: ", err));
-                break;
-            case "ping-check":
-                await databaseConnect()
-                    .then(async () => await pingCheckCommand(interaction))
-                    .catch((err) => console.error("Database connection error: ", err));
-                break;
-            case "ping-append":
-                await databaseConnect()
-                    .then(async () => await pingAppendCommand(interaction))
-                    .catch((err) => console.error("Database connection error: ", err));
-                break;
-            case "ping-remove":
-                await databaseConnect()
-                    .then(async () => await pingRemoveCommand(interaction))
-                    .catch((err) => console.error("Database connection error: ", err));
-                break;
-            default:
-                console.log("Unknown command");
+        const { commandName } = interaction;
+        try {
+
+            switch (commandName) {
+                case "ping":
+                    await databaseConnect()
+                        .then(() => pingCommand(interaction))
+                        .catch((err) => console.error("Database connection error: ", err));
+                    break;
+                case "ping-edit":
+                    await databaseConnect()
+                        .then(() => pingEditCommand(interaction))
+                        .catch((err) => console.error("Database connection error: ", err));
+                    break;
+                case "ping-help":
+                    await databaseConnect()
+                        .then(() => pingHelpCommand(interaction))
+                        .catch((err) => console.error("Database connection error: ", err));
+                    break;
+                case "ping-message":
+                    await databaseConnect()
+                        .then(async () => await pingMessageCommand(interaction))
+                        .catch((err) => console.error("Database connection error: ", err));
+                    break;
+                case "ping-check":
+                    await databaseConnect()
+                        .then(async () => await pingCheckCommand(interaction))
+                        .catch((err) => console.error("Database connection error: ", err));
+                    break;
+                case "ping-append":
+                    await databaseConnect()
+                        .then(async () => await pingAppendCommand(interaction))
+                        .catch((err) => console.error("Database connection error: ", err));
+                    break;
+                case "ping-remove":
+                    await databaseConnect()
+                        .then(async () => await pingRemoveCommand(interaction))
+                        .catch((err) => console.error("Database connection error: ", err));
+                    break;
+                default:
+                    console.error("Unknown command used: ", commandName);
+            }
+        } catch (err) {
+            console.error("Error closing", err);
+        } finally {
+            await closeDatabase().catch(err => console.error("database closing error ", err)); // closes database
         }
-    } catch (err) {
-        console.error("Error closing", err);
-    } finally {
-        await closeDatabase().catch(err => console.error("database closing error ", err)); // closes database
-    }
-});
+    });
 
+} catch (error) {
+    console.error("Error running interaction: ", error);
+
+}
 async function sleep(ms) {
     return new Promise((resolve) => {
         setTimeout(resolve, ms);
@@ -233,13 +252,13 @@ async function pingCommand(interaction) {
         let usersArr = await findUsers(interaction.guildId, interaction.user.id);
         //iterates through all the users to be pinged
         if (usersArr) {
-            let userMessage = await dbClient
+            let userData = await dbClient
                 .db("Ping-Bot")
                 .collection(interaction.guildId)
                 .findOne({
                     id: interaction.user.id,
                 });
-            for (const elem of usersArr.pingUsers) {
+            for (const elem in usersArr.pingUsers) {
 
                 try {
                     new Promise(async (resolve) => {
@@ -259,7 +278,7 @@ async function pingCommand(interaction) {
                                                 embeds: [
                                                     new EmbedBuilder()
                                                         .setColor(0xf1f1f1)
-                                                        .setTitle(userMessage.message)
+                                                        .setTitle(userData.message)
                                                         .setAuthor({
                                                             name: user.globalName,
                                                             iconURL: `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}`
@@ -281,7 +300,7 @@ async function pingCommand(interaction) {
                                                     embeds: [
                                                         new EmbedBuilder()
                                                             .setColor(0xf1f1f1)
-                                                            .setTitle(userMessage.message)
+                                                            .setTitle(userData.message)
                                                             .setAuthor({
                                                                 name: user.globalName,
                                                                 iconURL: `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}`
@@ -295,7 +314,6 @@ async function pingCommand(interaction) {
                                     }
                                 }).catch((err) => {
                                     console.error("Rate Limiter hit when sending message to user: ", err);
-                                    
                                 })
                             }
                         })
@@ -394,7 +412,7 @@ async function pingEditCommand(interaction) {
             members.forEach(member => {
                 !member.user.bot ? usrIDList.add(member.id) : null;
             })
-            await updateUsers(interaction.guildId, interaction.user, [...usrIDList]).then(async function () {
+            await updateUsers(interaction.guildId, interaction.user, [...usrIDList], interaction).then(async function () {
                 console.log("Added @everyone successfully")
 
                 await interaction.editReply({
@@ -425,13 +443,12 @@ async function pingEditCommand(interaction) {
                 let usrIDList = new Set();
                 listMembers.map(usr => usrIDList.add(usr.id));
                 usrList = usrIDList;
-                // console.log("list: " + usrList);
-                // console.log("Guild ID: " + interaction.guildId, "User: " + interaction.user);
+                
             } else {
                 usrList.add(elem);
             }
         })
-        await updateUsers(interaction.guildId, interaction.user, [...usrList]).then(async function () {
+        await updateUsers(interaction.guildId, interaction.user, [...usrList], interaction).then(async function () {
             console.log("-Updated the users successfully 1, \n-Will now send the reply and close the DB")
 
             await interaction.editReply({
@@ -443,7 +460,7 @@ async function pingEditCommand(interaction) {
             console.error("Error updating users", err);
         });
     } else {
-        await updateUsers(interaction.guildId, interaction.user, [...usersArr]).then(
+        await updateUsers(interaction.guildId, interaction.user, [...usersArr], interaction).then(
             async function () {
                 console.log("-Updated the users successfully 2 , \n-Will now send the reply and close the DB")
 
@@ -462,57 +479,248 @@ async function pingCheckCommand(interaction) {
         await interaction.deferReply({
             ephemeral: true,
         });
+        // Stores arrays of users with max 25 elements in each array
+        let allUserArrPage = [];
 
-        let userList = await findUsers(interaction.guildId, userID);
+        // Max 10 users in each array
+        let maxUserArr = [];
+
+        let userMap = await findUsers(interaction.guildId, userID);
+        let userList = Object.keys(userMap.pingUsers);
 
         if (userList) {
             let messageEmbed = new EmbedBuilder()
                 .setColor(0xf1f1f1)
                 .setTitle("List of users waiting to be pinged!")
-                .setFooter({ text: "Current message: \n" + userList.message });
+                .setFooter({ text: "Current message: \n" + userMap.message });
+
+            const previous = new ButtonBuilder()
+                .setCustomId("previous")
+                .setLabel("Previous Page")
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji("⬅️")
+                .setDisabled(true);
+            const next = new ButtonBuilder()
+                .setCustomId("next")
+                .setLabel("Next Page")
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji("➡️")
+            // .setDisabled(true);
+
+
+            // Initialize the ActionRowBuilder to null
+            // If the list of users exceeds 25, the buttons will be added in the message
+            let row = null;
+
+            // Keeps track of the pages for the list of users
+            let currentPage = 0;
+
+            // Keeps track of the number of users in the ping list
             let index = 0;
 
-            let arrLength = userList.pingUsers.length;
+
+
+            let arrLength = userList.length;
             if (arrLength > 25) {
                 messageEmbed.setDescription(`The list of users is too long! \nWill only show 25 users. \n\n(Current Size: **${arrLength}**).\n\0`);
+                row = new ActionRowBuilder()
+                    .addComponents(previous, next);
             }
-            // Use a for...of loop to handle async operations properly
-            for (const userID of userList.pingUsers) {
+
+            /**
+             * 1. Loop through the list of users to ping once 
+             * 2. Store the users within multiple arrays with max 10 elements
+             * 3. Add the first 10 users to the embeded
+             * 
+             **/
+
+            // ALTERNATIVE
+            /** 
+             * 1. Loops through the list of users
+             * 2. Adds the users to the embeded message
+             * 3. Once the embed message is sent, loop through the rest of the users
+             * 4. Store the users in multiple arrays with max 10 elements in each array
+             **/
+
+            // Function to fetch and format a user entry
+            async function fetchAndFormatUser(userID, index, messageEmbed, maxUserArr) {
                 try {
-                    let uname = await client.users.fetch(userID);
+                    let currUser = userMap.pingUsers[userID];
+                    maxUserArr.push(userID);
 
-                    if (index >= 25) {
-                        break;
-                    }
+                    messageEmbed.addFields({
+                        name: currUser.guildName ? "Guild Nickname:" : "Username:",
+                        value: `${index + 1}: ${currUser.guildName || currUser.globalName}`,
+                    });
 
-                    if (uname) {
-                        let guildMember = await interaction.guild.members.fetch(userID);
-                        let guildname = guildMember.nickname;
-
-                        if (guildname == null) {
-                            messageEmbed.addFields({
-                                name: "Guild Name: No Guild Name Found",
-                                value: "Handle: " + uname.username,
-                            });
-                        } else {
-                            messageEmbed.addFields({
-                                name: "Guild Name: " + guildname,
-                                value: "Handle: " + uname.username,
-                            });
-                        }
-                    }
-                    index++;
                 } catch (error) {
                     console.error(`Error fetching user with ID ${userID}:`, error);
-                    // Optionally, you can add a field to indicate an error occurred for this user
                 }
             }
 
-            // After collecting all users, send the embed once
-            await interaction.editReply({
-                embeds: [messageEmbed],
-                ephemeral: true,
+            async function fetchAndUpdateUser(userID, maxUserArr) {
+                try {
+                    maxUserArr.push(userID);
+                } catch (error) {
+                    console.error(`Error fetching user with ID ${userID}:`, error);
+                }
+            }
+
+
+
+            // Fetch the first 10 users and send the initial reply
+            for (let i = 0; i < Math.min(10, arrLength); i++) {
+                await fetchAndFormatUser(userList[i], index, messageEmbed, maxUserArr);
+                index++;
+            }
+
+            // Push the first page into `allUserArrPage`
+            allUserArrPage.push([...maxUserArr]);
+            maxUserArr.length = 0; // Clear `maxUserArr` for the next batch
+
+            // Send the initial reply with buttons
+            let btnInt;
+            if (arrLength > 25) {
+                btnInt = await interaction.editReply({
+                    embeds: [messageEmbed],
+                    components: [row],
+                    ephemeral: true,
+                });
+            } else {
+                btnInt = await interaction.editReply({
+                    embeds: [messageEmbed],
+                    ephemeral: true,
+                });
+            }
+
+            // Set up the collector for pagination
+            const confirm = btnInt.createMessageComponentCollector({ time: 1_200_000 });
+            confirm.on('collect', async (click) => {
+                switch (click.customId) {
+                    case 'previous':
+                        if (currentPage > 0) {
+                            await click.deferUpdate();
+
+                            if (currentPage > 0) {
+                                if (currentPage == 1) {
+                                    for (const elem of row.components) {
+                                        if (elem.data.custom_id == "previous") {
+                                            elem.setDisabled(true);
+                                        }
+                                    }
+                                }
+                                if (currentPage == allUserArrPage.length - 1) {
+                                    for (const elem of row.components) {
+                                        if (elem.data.custom_id == "next") {
+                                            elem.setDisabled(false);
+                                        }
+                                    }
+
+                                }
+
+
+                                let prevEmbed = new EmbedBuilder()
+                                    .setColor(0xf1f1f1)
+                                    .setTitle("List of users waiting to be pinged!")
+                                    .setFooter({ text: "Current message: \n" + userMap.message });
+
+                                let inc = 0;
+                                try {
+                                    for (const usr of allUserArrPage[currentPage - 1]) {
+                                        await fetchAndFormatUser(usr, (inc + ((currentPage - 1) * 10)), prevEmbed, maxUserArr);
+                                        inc++;
+                                    }
+                                } catch (error) {
+                                    console.error("Error fetching and formatting user: ", error);
+                                }
+
+                                try {
+
+                                    await click.editReply({ embeds: [prevEmbed], components: [row], ephemeral: true });
+                                } catch (err) {
+                                    console.error("Error editing message via webhook: ", err);
+                                }
+                            }
+
+                            currentPage--;
+                        }
+                        break;
+                    case 'next':
+                        await click.deferUpdate(); // Acknowledge the button click
+
+                        if (currentPage < allUserArrPage.length - 1) {
+                            if (currentPage == 0) {
+                                for (const elem of row.components) {
+                                    if (elem.data.custom_id == "previous") {
+                                        elem.setDisabled(false);
+                                    }
+                                }
+                            }
+
+                            if (currentPage == allUserArrPage.length - 2) {
+                                for (const elem of row.components) {
+                                    if (elem.data.custom_id == "next") {
+                                        elem.setDisabled(true);
+                                    }
+                                }
+
+                            }
+
+
+                            let prevEmbed = new EmbedBuilder()
+                                .setColor(0xf1f1f1)
+                                .setTitle("List of users waiting to be pinged!")
+                                .setFooter({ text: "Current message: \n" + userMap.message });
+
+                            let inc = 0;
+                            for (const usr of allUserArrPage[currentPage + 1]) {
+                                await fetchAndFormatUser(usr, (inc + ((currentPage + 1) * 10)), prevEmbed, maxUserArr);
+                                inc++;
+                            }
+                            try {
+
+
+                                await click.editReply({ embeds: [prevEmbed], components: [row], ephemeral: true });
+                            } catch (err) {
+                                console.error("Error editing message via webhook: ", err);
+                            }
+                            currentPage++;
+                        } else {
+                            for (const elem of row.components) {
+                                if (elem.data.customId == "next") {
+                                    elem.setDisabled(true);
+                                }
+                            }
+                            await click.editReply({
+                                components: [row],
+                                ephemeral: true,
+                            })
+                        }
+                        break;
+                }
             });
+
+            // Fetch the remaining users and paginate in batches of 10
+            for (let i = index; i < arrLength; i++) {
+                await fetchAndUpdateUser(userList[i], maxUserArr);
+
+                // Group users into pages of 10
+                if (maxUserArr.length === 10 || i === arrLength - 1) {
+                    allUserArrPage.push([...maxUserArr]);
+                    maxUserArr.length = 0; // Clear `maxUserArr` for the next batch
+
+                    /**
+                     * 1. Check if the next button is disabled
+                     * 2. If it is, enable it
+                     * 3. If it is not, do nothing
+                     *   
+                     * */
+                    // let isDisabled = true;
+
+                }
+
+            }
+
         } else {
             await interaction.editReply({
                 content: "User not found. Try to add users to ping, then try again.",
@@ -520,7 +728,7 @@ async function pingCheckCommand(interaction) {
             });
         }
     } catch (error) {
-        console.error('An error occurred:', error);
+        console.error('An error occurred when running the ping-check command:', error);
         await interaction.editReply({
             content: "An error occurred while processing your request.",
             ephemeral: true,
@@ -552,10 +760,10 @@ async function pingAppendCommand(interaction) {
         let arrOfUsers = new Set(tempUsrArr);
 
         let dbDoc = await findUsers(interaction.guildId, interaction.user.id);
-        let prevUsers = dbDoc.pingUsers;
+        let prevUsers = Object.keys(dbDoc.pingUsers);
 
         // Checks if there are roles included in the list of users
-        if ([...arrOfUsers].find((elem) => elem.includes("&")) != null) {
+        if (message.includes("&")) {
 
             let currGuild = await client.guilds.fetch(interaction.guildId);
             let memFetch = await currGuild.members.fetch();
@@ -573,19 +781,7 @@ async function pingAppendCommand(interaction) {
 
             if (usrList && prevUsers) {
                 let allUsers = new Set([...usrList, ...prevUsers]);
-                let appended = await dbClient
-                    .db("Ping-Bot")
-                    .collection(interaction.guildId)
-                    .updateOne(
-                        {
-                            id: interaction.user.id,
-                        },
-                        {
-                            $set: {
-                                pingUsers: [...allUsers],
-                            },
-                        }
-                    );
+                let appended = await updateUsers(interaction.guildId, interaction.user, [...allUsers], interaction);
                 if (appended.acknowledged) {
                     interaction.editReply({
                         content: "Appended users!",
@@ -614,19 +810,7 @@ async function pingAppendCommand(interaction) {
             let allUsers;
             if (prevUsers) {
                 allUsers = new Set([...prevUsers, ...arrOfUsers]);
-                let appended = await dbClient
-                    .db("Ping-Bot")
-                    .collection(interaction.guildId)
-                    .updateOne(
-                        {
-                            id: interaction.user.id,
-                        },
-                        {
-                            $set: {
-                                pingUsers: [...allUsers],
-                            },
-                        }
-                    );
+                let appended = await updateUsers(interaction.guildId, interaction.user, [...allUsers], interaction);
                 if (appended.acknowledged) {
                     interaction.editReply({
                         content: "Appended users!",
@@ -685,7 +869,7 @@ async function pingRemoveCommand(interaction) {
 
         let arrOfUsers = new Set(tempUsrArr);
         let doc = await findUsers(interaction.guildId, interaction.user.id);
-        let prevUsers = new Set(await doc.pingUsers);
+        let prevUsers = new Set(Object.keys(doc.pingUsers));
         let foundUsers = new Set();
 
         if (arrOfUsers.size == 1) {
@@ -701,24 +885,16 @@ async function pingRemoveCommand(interaction) {
         }
 
         if (foundUsers.size > 0) {
-            await dbClient
-                .db("Ping-Bot")
-                .collection(interaction.guildId)
-                .updateOne(
-                    {
-                        id: interaction.user.id,
-                    },
-                    {
-                        $set: {
-                            pingUsers: [...prevUsers],
-                        },
-                    }
-                );
+            try {
+                let removed = await updateUsers(interaction.guildId, interaction.user, [...prevUsers], interaction);
 
-            await interaction.editReply({
-                content: "Removed users successfully! \n\nRun /ping-check to see the updated list.",
-                ephemeral: true,
-            });
+                await interaction.editReply({
+                    content: "Removed users successfully! \n\nRun /ping-check to see the updated list.",
+                    ephemeral: true,
+                });
+            } catch (error) {
+                console.error("Error removing users: ", error);
+            }
         } else {
             await interaction.editReply({
                 content: "Users not found in the list. Try again.",
