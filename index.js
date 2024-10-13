@@ -137,37 +137,156 @@ try {
                 case "ping":
                     await databaseConnect()
                         .then(() => pingCommand(interaction))
-                        .catch((err) => console.error("Database connection error: ", err));
+                        .catch((err) => {
+                            if (interaction.deferred && !interaction.replied) {
+                                if (err.name == "MongoNotConnectedError") {
+                                    interaction.editReply({
+                                        content: "Something went wrong with the database while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Database connection error: ", err)
+
+                                } else {
+                                    interaction.editReply({
+                                        content: "Something went wrong while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Client error: ", err)
+                                }
+                            }
+                        });
                     break;
                 case "ping-edit":
                     await databaseConnect()
                         .then(() => pingEditCommand(interaction))
-                        .catch((err) => console.error("Database connection error: ", err));
+                        .catch((err) => {
+                            if (interaction.deferred && !interaction.replied) {
+                                if (err.name == "MongoNotConnectedError") {
+                                    interaction.editReply({
+                                        content: "Something went wrong with the database while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Database connection error: ", err)
+
+                                } else {
+                                    interaction.editReply({
+                                        content: "Something went wrong while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Client error: ", err)
+                                }
+                            }
+                        });
                     break;
                 case "ping-help":
                     await databaseConnect()
                         .then(() => pingHelpCommand(interaction))
-                        .catch((err) => console.error("Database connection error: ", err));
+                        .catch((err) => {
+                            if (interaction.deferred && !interaction.replied) {
+                                if (err.name == "MongoNotConnectedError") {
+                                    interaction.editReply({
+                                        content: "Something went wrong with the database while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Database connection error: ", err)
+
+                                } else {
+                                    interaction.editReply({
+                                        content: "Something went wrong while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Client error: ", err)
+                                }
+                            }
+                        });
                     break;
                 case "ping-message":
                     await databaseConnect()
                         .then(async () => await pingMessageCommand(interaction))
-                        .catch((err) => console.error("Database connection error: ", err));
+                        .catch((err) => {
+                            if (interaction.deferred && !interaction.replied) {
+                                if (err.name == "MongoNotConnectedError") {
+                                    interaction.editReply({
+                                        content: "Something went wrong with the database while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Database connection error: ", err)
+
+                                } else {
+                                    interaction.editReply({
+                                        content: "Something went wrong while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Client error: ", err)
+                                }
+                            }
+                        });
                     break;
                 case "ping-check":
                     await databaseConnect()
                         .then(async () => await pingCheckCommand(interaction))
-                        .catch((err) => console.error("Database connection error: ", err));
+                        .catch((err) => {
+                            if (interaction.deferred && !interaction.replied) {
+                                if (err.name == "MongoNotConnectedError") {
+                                    interaction.editReply({
+                                        content: "Something went wrong with the database while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Database connection error: ", err)
+
+                                } else {
+                                    interaction.editReply({
+                                        content: "Something went wrong while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Client error: ", err)
+                                }
+                            }
+                        });
                     break;
                 case "ping-append":
                     await databaseConnect()
                         .then(async () => await pingAppendCommand(interaction))
-                        .catch((err) => console.error("Database connection error: ", err));
+                        .catch((err) => {
+                            if (interaction.deferred && !interaction.replied) {
+                                if (err.name == "MongoNotConnectedError") {
+                                    interaction.editReply({
+                                        content: "Something went wrong with the database while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Database connection error: ", err)
+
+                                } else {
+                                    interaction.editReply({
+                                        content: "Something went wrong while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Client error: ", err)
+                                }
+                            }
+                        });
                     break;
                 case "ping-remove":
                     await databaseConnect()
                         .then(async () => await pingRemoveCommand(interaction))
-                        .catch((err) => console.error("Database connection error: ", err));
+                        .catch((err) => {
+                            if (interaction.deferred && !interaction.replied) {
+                                if (err.name == "MongoNotConnectedError") {
+                                    interaction.editReply({
+                                        content: "Something went wrong with the database while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Database connection error: ", err)
+
+                                } else {
+                                    interaction.editReply({
+                                        content: "Something went wrong while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Client error: ", err)
+                                }
+                            }
+                        });
                     break;
                 default:
                     console.error("Unknown command used: ", commandName);
@@ -443,7 +562,7 @@ async function pingEditCommand(interaction) {
                 let usrIDList = new Set();
                 listMembers.map(usr => usrIDList.add(usr.id));
                 usrList = usrIDList;
-                
+
             } else {
                 usrList.add(elem);
             }
@@ -762,6 +881,9 @@ async function pingAppendCommand(interaction) {
         let dbDoc = await findUsers(interaction.guildId, interaction.user.id);
         let prevUsers = Object.keys(dbDoc.pingUsers);
 
+
+        // TODO: Check for @everyone
+
         // Checks if there are roles included in the list of users
         if (message.includes("&")) {
 
@@ -866,6 +988,8 @@ async function pingRemoveCommand(interaction) {
             return elem.trim().slice(2);
         });
         tempUsrArr.splice(-1, 1);
+
+        // TODO: Check for roles and for @everyone
 
         let arrOfUsers = new Set(tempUsrArr);
         let doc = await findUsers(interaction.guildId, interaction.user.id);
