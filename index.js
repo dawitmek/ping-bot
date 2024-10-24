@@ -404,6 +404,8 @@ async function pingCommand(interaction) {
                                                         })
                                                         .setDescription(" ")
                                                 ]
+                                            }).catch((err) => {
+                                                console.error(`Error sending message to user ${user.username}\n `, err);
                                             });
                                     }
                                 } catch (error) {
@@ -426,6 +428,8 @@ async function pingCommand(interaction) {
                                                             })
                                                             .setDescription(" ")
                                                     ]
+                                                }).catch((err) => {
+                                                    console.error(`Error sending message to user ${user.username}: `, err);
                                                 });
                                         }
                                     } catch (error) {
