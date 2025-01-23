@@ -26,8 +26,15 @@ const commands = [
 		option.setName('usernames')
 			.setDescription('Users you would like to remove from your ping list. ONLY INCLUDE @\'s')
 			.setRequired(true)),
-]
-	.map(command => command.toJSON());
+	new SlashCommandBuilder().setName('ping-block').setDescription('Block a user from pinging you.').addStringOption(option =>
+		option.setName('usernames')
+			.setDescription('Include @Users or @Roles')
+			.setRequired(true)),
+	new SlashCommandBuilder().setName('ping-unblock').setDescription('Block a user from pinging you.').addStringOption(option =>
+		option.setName('usernames')
+			.setDescription('Include @Users or @Roles')
+			.setRequired(true))
+].map(command => command.toJSON());
 
 const rest = new REST({ version: '9' }).setToken(token);
 

@@ -42,12 +42,13 @@ async function findUsers(guild, user) {
 }
 
 async function updateUsers(guild, user, newUsers, interaction) {
-    // finds and updates users to ping
+
 
     let userObj = new Map();
     for (const user of newUsers) {
         let userInfo = await interaction.guild.members.fetch({ user: user, force: true });
 
+        // uses their nickname if they have one, otherwise uses their true username
         let userData = {
             guildName: userInfo.nickname,
             globalName: !userInfo.user.globalName ? userInfo.user.username : userInfo.user.globalName,
@@ -77,27 +78,10 @@ async function updateUsers(guild, user, newUsers, interaction) {
             .insertOne({
                 id: user.id,
                 pingUsers: userObj,
-                message: `User ${user.username} is pinging you!`,
+                message: `You're getting pinged!`,
                 lastModified: new Date().toLocaleString(),
             });
     } else return replaced;
-
-    //**************************** Tried to check for bots here *******************
-
-    // newUsers.forEach(user => {
-    //     fetchUser(user)
-    //         .then((userCheck) => {
-    //             try {
-    //                 if (userCheck.bot) {
-    //                     throw new Error('BOTPINGERROR: Tried to ping a bot');
-    //                 }
-    //             } catch (error) {
-    //                 return error;
-    //             }
-    //         })
-    // })
-
-    //********************************************************************* */
 }
 
 async function updateUserMessage(guild, user, newMessage) {
@@ -110,7 +94,7 @@ async function updateUserMessage(guild, user, newMessage) {
             },
             {
                 $set: {
-                    message: `${user.username}: ${newMessage}`,
+                    message: `Message: ${newMessage}`,
                 },
             }
         );
@@ -127,7 +111,6 @@ async function closeDatabase() {
 try {
 
     client.on("interactionCreate", async (interaction) => {
-        //  ************************ connect to database ************************
         if (!interaction.isCommand()) return;
 
         const { commandName } = interaction;
@@ -287,6 +270,49 @@ try {
                                 }
                             }
                         });
+                case "ping-block":
+                    await databaseConnect()
+                        .then(async () => await pingBlockCommand(interaction))
+                        .catch((err) => {
+                            if (interaction.deferred && !interaction.replied) {
+                                if (err.name == "MongoNotConnectedError") {
+                                    interaction.editReply({
+                                        content: "Something went wrong with the database while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Database connection error: ", err)
+
+                                } else {
+                                    interaction.editReply({
+                                        content: "Something went wrong while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Client error: ", err)
+                                }
+                            }
+                        });
+                    break;
+                case "ping-unblock":
+                    await databaseConnect()
+                        .then(async () => await pingUnblockCommand(interaction))
+                        .catch((err) => {
+                            if (interaction.deferred && !interaction.replied) {
+                                if (err.name == "MongoNotConnectedError") {
+                                    interaction.editReply({
+                                        content: "Something went wrong with the database while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Database connection error: ", err)
+
+                                } else {
+                                    interaction.editReply({
+                                        content: "Something went wrong while processing your request.",
+                                        ephemeral: true,
+                                    })
+                                    console.error("Client error: ", err)
+                                }
+                            }
+                        });
                     break;
                 default:
                     console.error("Unknown command used: ", commandName);
@@ -316,20 +342,15 @@ async function pingMessageCommand(interaction) {
         });
     } catch (error) {
         console.log(new Date().toLocaleString() + " Error found during deferring reply: " + error);
-
     }
     await updateUserMessage(interaction.guildId, interaction.user, newMessage) // update's message
         .then(async function () {
-
-
             await interaction.editReply({
                 content: "Message Updated.",
                 ephemeral: true
             })
         })
         .catch(async function (err) {
-
-
             await interaction.editReply({
                 content: "Error occured when updating: " + err,
                 ephemeral: true
@@ -378,18 +399,29 @@ async function pingCommand(interaction) {
                     id: interaction.user.id,
                 });
             for (const elem in usersArr.pingUsers) {
+                let blockedList = await dbClient
+                    .db("Ping-Bot")
+                    .collection("block_list")
+                    .findOne({
+                        id: elem
+                    })
 
+                if (blockedList && blockedList.blockedUsers.includes(interaction.user.id)) {
+                    console.log(`User ${elem} is blocked from ${interaction.user.username} and will not be pinged.`);
+                    continue;
+                }
                 try {
                     new Promise(async (resolve) => {
                         // Finds their DM address
                         resolve(client.users.fetch(elem.toString()));
                     })
-                        .then((user) => {
+                        .then(async (user) => {
                             // Checks if is within limit
                             // if is within limit, proceed
                             // if it's not within limit, timeout for 5 seconds then try again
                             if (rateLimiterOK(interaction.user.id)) {
                                 try {
+
                                     if (!user.bot) {
                                         console.log("Sending message to user: ", user.username);
                                         user.send(
@@ -397,12 +429,12 @@ async function pingCommand(interaction) {
                                                 embeds: [
                                                     new EmbedBuilder()
                                                         .setColor(0xf1f1f1)
-                                                        .setTitle(userData.message)
+                                                        .setTitle(userData.message + "\n\nhttps://discord.com/channels/" + interaction.guildId + "/" + interaction.channelId)
                                                         .setAuthor({
-                                                            name: user.globalName,
-                                                            iconURL: `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}`
+                                                            name: interaction.user.globalName,
+                                                            iconURL: `https://cdn.discordapp.com/avatars/${interaction.user.id}/${interaction.user.avatar}`
                                                         })
-                                                        .setDescription(" ")
+                                                        .setDescription("Click link to head there!")
                                                 ]
                                             }).catch((err) => {
                                                 console.error(`Error sending message to user ${user.username}\n `, err);
@@ -524,8 +556,7 @@ async function pingEditCommand(interaction) {
     let usersArr = new Set(tempUsrArr);
 
 
-    // searches if the user is a role
-    // else, updates DB as the users
+    // * checks to see if the message includes @everyone
     if (message.includes('@everyone')) {
         const guild = await client.guilds.fetch(interaction.guildId);
         const members = await guild.members.fetch();
@@ -551,7 +582,7 @@ async function pingEditCommand(interaction) {
                 ephemeral: true,
             })
         }
-
+        // * checks if the users include roles
     } else if (message.includes("&")) {
 
         let currGuild = await client.guilds.fetch(interaction.guildId);
@@ -582,6 +613,7 @@ async function pingEditCommand(interaction) {
         ).catch((err) => {
             console.error("Error updating users", err);
         });
+        // * else updates the users in the database
     } else {
         await updateUsers(interaction.guildId, interaction.user, [...usersArr], interaction).then(
             async function () {
@@ -1036,6 +1068,173 @@ async function pingRemoveCommand(interaction) {
             ephemeral: true,
         });
     }
+}
+
+async function pingBlockCommand(interaction) {
+    let userID = interaction.user.id;
+
+    try {
+        await interaction.deferReply({
+            ephemeral: true,
+        });
+    } catch (err) {
+        console.error("Error deferring reply", err);
+    }
+
+    // TODO: Validate the users are @'s 
+
+    try {
+        let message = interaction.options._hoistedOptions[0].value;
+        let tempUsrArr = message.split(">").map((elem) => {
+            return elem.trim().slice(2);
+        });
+        tempUsrArr.splice(-1, 1);
+
+        let arrOfUsers = new Set(tempUsrArr);
+        let doc = await findUsers(interaction.guildId, interaction.user.id);
+        let prevBlockedUsers = new Set(Object.keys(doc.blockedUsers ? doc.blockedUsers : []));
+
+        let allBlockedUsers = new Set([...prevBlockedUsers, ...arrOfUsers]);
+
+        let blocked = await dbClient
+            .db("Ping-Bot")
+            .collection("block_list")
+            .updateOne(
+                {
+                    id: interaction.user.id,
+                },
+                {
+                    $set: {
+                        lastModified: new Date().toLocaleString(),
+                        blockedUsers: [...allBlockedUsers],
+                    },
+                }
+            );
+        if (blocked.matchedCount < 1) {
+            let blockCreate = await dbClient
+                .db("Ping-Bot")
+                .collection("block_list")
+                .insertOne(
+                    {
+                        id: interaction.user.id,
+                        lastModified: new Date().toLocaleString(),
+                        blockedUsers: [...allBlockedUsers],
+                    },
+                );
+            console.log(blockCreate);
+
+        } else if (blocked.acknowledged) {
+            await interaction.editReply({
+                content: "Blocked users successfully!",
+                ephemeral: true,
+            });
+        }
+        else {
+            await interaction.editReply({
+                content: "Error blocking users. Try again later.",
+                ephemeral: true,
+            });
+            console.error("Error blocking users: ", blocked);
+
+        }
+
+
+    } catch (err) {
+        console.error("Error blocking users: ", err);
+        await interaction.editReply({
+            content: "An error has occured when processing your request.",
+            ephemeral: true,
+        });
+    }
+
+}
+async function pingUnblockCommand(interaction) {
+    let userID = interaction.user.id;
+
+    try {
+        await interaction.deferReply({
+            ephemeral: true,
+        });
+    } catch (err) {
+        console.error("Error deferring reply", err);
+    }
+
+    // TODO: Validate the users are @'s 
+
+    try {
+        let message = interaction.options._hoistedOptions[0].value;
+        let tempUsrArr = message.split(">").map((elem) => {
+            return elem.trim().slice(2);
+        });
+        tempUsrArr.splice(-1, 1);
+
+        let arrOfUsers = new Set(tempUsrArr);
+        let doc = await dbClient.db("Ping-Bot").collection("block_list").findOne({ id: interaction.user.id });
+        if (!doc) {
+            await interaction.editReply({
+                content: "No users to unblock!",
+                ephemeral: true,
+            })
+        } else {
+            let prevBlockedUsers = new Set(doc.blockedUsers != null ? [...doc.blockedUsers] : []);
+
+            arrOfUsers.forEach(user => prevBlockedUsers.delete(user));
+
+            let allBlockedUsers = [...prevBlockedUsers];
+
+            let blocked = await dbClient
+                .db("Ping-Bot")
+                .collection("block_list")
+                .updateOne(
+                    {
+                        id: interaction.user.id,
+                    },
+                    {
+                        $set: {
+                            lastModified: new Date().toLocaleString(),
+                            blockedUsers: allBlockedUsers,
+                        },
+                    }
+                );
+
+            if (blocked.matchedCount < 1) {
+                let blockCreate = await dbClient
+                    .db("Ping-Bot")
+                    .collection("block_list")
+                    .insertOne(
+                        {
+                            id: interaction.user.id,
+                            lastModified: new Date().toLocaleString(),
+                            blockedUsers: [...allBlockedUsers],
+                        },
+                    );
+                console.log(blockCreate);
+
+            } else if (blocked.acknowledged) {
+                await interaction.editReply({
+                    content: "Blocked users successfully!",
+                    ephemeral: true,
+                });
+            }
+            else {
+                await interaction.editReply({
+                    content: "Error blocking users. Try again later.",
+                    ephemeral: true,
+                });
+                console.error("Error blocking users: ", blocked);
+
+            }
+        }
+
+
+    } catch (err) {
+        console.error("Error blocking users: ", err);
+        await interaction.editReply({
+            content: "An error has occured when processing your request.",
+            ephemeral: true,
+        });
+    }
+
 }
 
 // Login to Discord with your client's token
