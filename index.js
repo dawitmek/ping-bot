@@ -1110,6 +1110,8 @@ async function pingBlockCommand(interaction) {
                     },
                 }
             );
+
+        // Creates a database entry if there is no entry to update
         if (blocked.matchedCount < 1) {
             let blockCreate = await dbClient
                 .db("Ping-Bot")
@@ -1121,7 +1123,12 @@ async function pingBlockCommand(interaction) {
                         blockedUsers: [...allBlockedUsers],
                     },
                 );
-            console.log(blockCreate);
+            console.log("Created a new block for user " + interaction.user.username);
+
+            await interaction.editReply({
+                content: "Blocked users successfully!",
+                ephemeral: true,
+            })
 
         } else if (blocked.acknowledged) {
             await interaction.editReply({
@@ -1135,9 +1142,7 @@ async function pingBlockCommand(interaction) {
                 ephemeral: true,
             });
             console.error("Error blocking users: ", blocked);
-
         }
-
 
     } catch (err) {
         console.error("Error blocking users: ", err);
@@ -1170,65 +1175,64 @@ async function pingUnblockCommand(interaction) {
 
         let arrOfUsers = new Set(tempUsrArr);
         let doc = await dbClient.db("Ping-Bot").collection("block_list").findOne({ id: interaction.user.id });
-        if (!doc) {
+        if (!doc || doc.blockedUsers == null) {
             await interaction.editReply({
                 content: "No users to unblock!",
                 ephemeral: true,
             })
         } else {
             let prevBlockedUsers = new Set(doc.blockedUsers != null ? [...doc.blockedUsers] : []);
-
-            arrOfUsers.forEach(user => prevBlockedUsers.delete(user));
+            let found = false;
+            arrOfUsers.forEach(user => {
+                found = prevBlockedUsers.delete(user);
+            });
 
             let allBlockedUsers = [...prevBlockedUsers];
 
-            let blocked = await dbClient
-                .db("Ping-Bot")
-                .collection("block_list")
-                .updateOne(
-                    {
-                        id: interaction.user.id,
-                    },
-                    {
-                        $set: {
-                            lastModified: new Date().toLocaleString(),
-                            blockedUsers: allBlockedUsers,
-                        },
-                    }
-                );
-
-            if (blocked.matchedCount < 1) {
-                let blockCreate = await dbClient
+            if (found) {
+                let unblocked = await dbClient
                     .db("Ping-Bot")
                     .collection("block_list")
-                    .insertOne(
+                    .updateOne(
                         {
                             id: interaction.user.id,
-                            lastModified: new Date().toLocaleString(),
-                            blockedUsers: [...allBlockedUsers],
                         },
+                        {
+                            $set: {
+                                lastModified: new Date().toLocaleString(),
+                                blockedUsers: allBlockedUsers,
+                            },
+                        }
                     );
-                console.log(blockCreate);
+                if (doc.blockedUsers.length == 0) {
+                    await interaction.editReply({
+                        content: "Block list is empty!",
+                        ephemeral: true,
+                    });
 
-            } else if (blocked.acknowledged) {
+                } else if (unblocked.acknowledged) {
+                    await interaction.editReply({
+                        content: "Unblocked users successfully!",
+                        ephemeral: true,
+                    });
+                }
+                else {
+                    await interaction.editReply({
+                        content: "Error blocking users. Try again later.",
+                        ephemeral: true,
+                    });
+                    console.error("Error blocking users: ", unblocked);
+                }
+            } else {
                 await interaction.editReply({
-                    content: "Blocked users successfully!",
+                    content: "Users not found in the block list.",
                     ephemeral: true,
                 });
-            }
-            else {
-                await interaction.editReply({
-                    content: "Error blocking users. Try again later.",
-                    ephemeral: true,
-                });
-                console.error("Error blocking users: ", blocked);
-
             }
         }
 
-
     } catch (err) {
-        console.error("Error blocking users: ", err);
+        console.error("Error unblocking users: ", err);
         await interaction.editReply({
             content: "An error has occured when processing your request.",
             ephemeral: true,
