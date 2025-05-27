@@ -52,7 +52,7 @@ module.exports = {
         .setName('ping')
         .setDescription('Sends a message to the users in your ping list.'),
     async execute(interaction, client) {
-        const logPrefix = `[Ping Command by ${interaction.user.username} (${interaction.user.id})]`;
+        const logPrefix = `[Ping by ${interaction.user.username}]`;
         console.log(`${logPrefix} Initiated in guild ${interaction.guildId}.`);
 
         try {
