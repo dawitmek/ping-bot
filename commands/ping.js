@@ -28,7 +28,7 @@ async function sendPingDM(discordUser, interaction, senderUserData) {
             embeds: [
                 new EmbedBuilder()
                     .setColor(0xf1f1f1)
-                    .setTitle(userData.message + "\n\nhttps://discord.com/channels/" + interaction.guildId + "/" + interaction.channelId)
+                    .setTitle(senderUserData.message + "\n\nhttps://discord.com/channels/" + interaction.guildId + "/" + interaction.channelId)
                     .setAuthor({
                         name: interaction.user.globalName,
                         iconURL: `https://cdn.discordapp.com/avatars/${interaction.user.id}/${interaction.user.avatar}`
@@ -39,7 +39,7 @@ async function sendPingDM(discordUser, interaction, senderUserData) {
 
             ]
         });
-        console.log(`[Ping] DM SUCCESS to ${discordUser.username} (${discordUser.id})`); // Verbose
+        console.log(`[Ping] DM SUCCESS to ${discordUser.username}`); // Verbose
         return { success: true, username: discordUser.username };
     } catch (err) {
         // Error logged in the main loop
@@ -52,8 +52,9 @@ module.exports = {
         .setName('ping')
         .setDescription('Sends a message to the users in your ping list.'),
     async execute(interaction, client) {
-        const logPrefix = `[Ping by ${interaction.user.username}]`;
-        console.log(`${logPrefix} Initiated in guild ${interaction.guildId}.`);
+        const logPrefix = `[INFO]`;
+        console.log(`${logPrefix} Ping Created from (${interaction.user.globalName}).`);
+        console.log(`${logPrefix} In guild ${interaction.guild.name} (${interaction.guildId}).`);
 
         try {
             const senderUserData = await lib.dbClient.db("Ping-Bot").collection(interaction.guildId).findOne({ id: interaction.user.id });
@@ -129,7 +130,7 @@ module.exports = {
                         }
                         // Failures where DM couldn't be sent are caught below
                     } catch (dmError) {
-                        console.error(`${logPrefix} DM SEND ERROR to ${discordUser.username} (${discordUser.id}): ${dmError.message} (Code: ${dmError.code || 'N/A'})`);
+                        console.error(`${logPrefix} DM SEND ERROR to ${discordUser.username}: ${dmError.message} (Code: ${dmError.code || 'N/A'})`);
                         dmResults.failed.push({ username: discordUser.username, error: dmError.message });
                     }
 
