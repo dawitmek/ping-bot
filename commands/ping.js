@@ -28,16 +28,15 @@ async function sendPingDM(discordUser, interaction, senderUserData) {
             embeds: [
                 new EmbedBuilder()
                     .setColor(0xf1f1f1)
-                    .setTitle(senderUserData.message)
-                    .setURL(`https://discord.com/channels/${interaction.guildId}/${interaction.channelId}`)
+                    .setTitle(userData.message + "\n\nhttps://discord.com/channels/" + interaction.guildId + "/" + interaction.channelId)
                     .setAuthor({
-                        name: `Ping from ${interaction.user.globalName || interaction.user.username}`,
-                        iconURL: interaction.user.displayAvatarURL({ dynamic: true }) || `https://cdn.discordapp.com/avatars/${interaction.user.id}/${interaction.user.avatar}.png`
+                        name: interaction.user.globalName,
+                        iconURL: `https://cdn.discordapp.com/avatars/${interaction.user.id}/${interaction.user.avatar}`
                     })
-                    .setDescription(`Click the title to jump to the channel where ${interaction.user.globalName || interaction.user.username} pinged!`)
-                    .addFields({ name: 'Server', value: interaction.guild.name, inline: true })
+                    .setDescription("Click link to head there!")
                     .setTimestamp()
                     .setFooter({ text: `Sent via Ping Bot` })
+
             ]
         });
         console.log(`[Ping] DM SUCCESS to ${discordUser.username} (${discordUser.id})`); // Verbose
@@ -121,20 +120,20 @@ module.exports = {
                             continue;
                         }
                     }
-                    
+
                     try {
                         const result = await sendPingDM(discordUser, interaction, senderUserData);
                         // `sendPingDM` now only returns success/failure, specific errors logged within it or here if it throws
                         if (result.success && !result.skipped) { // skipped is true for bots, already handled
-                             dmResults.successful.push(result.username);
+                            dmResults.successful.push(result.username);
                         }
                         // Failures where DM couldn't be sent are caught below
                     } catch (dmError) {
-                         console.error(`${logPrefix} DM SEND ERROR to ${discordUser.username} (${discordUser.id}): ${dmError.message} (Code: ${dmError.code || 'N/A'})`);
-                         dmResults.failed.push({ username: discordUser.username, error: dmError.message });
+                        console.error(`${logPrefix} DM SEND ERROR to ${discordUser.username} (${discordUser.id}): ${dmError.message} (Code: ${dmError.code || 'N/A'})`);
+                        dmResults.failed.push({ username: discordUser.username, error: dmError.message });
                     }
 
-                } catch (fetchOrOuterLoopError) { 
+                } catch (fetchOrOuterLoopError) {
                     // This catches errors from fetchUserWithTimeout or other synchronous errors in the user processing try block
                     console.error(`${logPrefix} PROCESSING ERROR for user ID ${targetUserId}: ${fetchOrOuterLoopError.message}`);
                     // Ensure it's added to a relevant category if not already covered
@@ -155,7 +154,7 @@ module.exports = {
             if (dmResults.failed.length > 0) summaryEmbed.addFields({ name: '❌ Failed Pings/Errors', value: `${dmResults.failed.length + dmResults.skipped_fetch_fail.length}`, inline: true });
             if (dmResults.skipped_blocked.length > 0) summaryEmbed.addFields({ name: '🚫 Skipped (User Blocked You)', value: `${dmResults.skipped_blocked.length}`, inline: true });
             if (dmResults.skipped_bots.length > 0) summaryEmbed.addFields({ name: '🤖 Skipped (Bot Accounts)', value: `${dmResults.skipped_bots.length}`, inline: true });
-            
+
             const totalProcessedOrSkipped = dmResults.successful.length + dmResults.failed.length + dmResults.skipped_fetch_fail.length + dmResults.skipped_blocked.length + dmResults.skipped_bots.length;
 
             if (dmResults.successful.length === totalUsersInList && totalUsersInList > 0 && dmResults.failed.length === 0 && dmResults.skipped_blocked.length === 0 && dmResults.skipped_fetch_fail.length === 0) {
@@ -165,12 +164,12 @@ module.exports = {
             } else if (totalUsersInList > 0 && (dmResults.failed.length > 0 || dmResults.skipped_blocked.length > 0 || dmResults.skipped_fetch_fail.length > 0)) {
                 summaryEmbed.setColor(0xED4245); // Red
             } else if (totalUsersInList > 0 && dmResults.skipped_bots.length === totalUsersInList) {
-                 summaryEmbed.setColor(0x5865F2); // Neutral Blue
+                summaryEmbed.setColor(0x5865F2); // Neutral Blue
             } else {
                 summaryEmbed.setColor(0x5865F2); // Neutral Blue
             }
             if (dmResults.failed.length > 0 || dmResults.skipped_fetch_fail.length > 0) summaryEmbed.setFooter({ text: "Failures can be due to DMs disabled, bot blocked, or user fetch issues." });
-            
+
             if (totalUsersInList > 0 && totalProcessedOrSkipped === 0 && dmResults.successful.length === 0) {
                 // This case means users were in the list but none of the categories above were hit, which is unlikely
                 summaryEmbed.setDescription(`Attempted to ping ${totalUsersInList} user(s), but no specific outcomes were recorded (this indicates an unusual state).`);
