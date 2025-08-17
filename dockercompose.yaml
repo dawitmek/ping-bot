@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  ping-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Use the long syntax for secrets to specify ownership (uid/gid)
+    secrets:
+      - source: PINGBOTTOKEN
+        target: PINGBOTTOKEN
+        uid: '1001'
+        gid: '1001'
+      - source: PingClient
+        target: PingClient
+        uid: '1001'
+        gid: '1001'
+      - source: MongoClient
+        target: MongoClient
+        uid: '1001'
+        gid: '1001'
+    ports:
+      - "3000:3000"
+    # This command will now execute successfully because appuser can read the secret files
+    command: >
+      sh -c "export PINGBOTTOKEN=$(cat /run/secrets/PINGBOTTOKEN) &&
+             export PingClient=$(cat /run/secrets/PingClient) &&
+             export MongoClient=$(cat /run/secrets/MongoClient) &&
+             node index.js"
+
+# The top-level secrets block now only defines where to get the secret from.
+
+secrets:
+  PINGBOTTOKEN:
+    environment: "PINGBOTTOKEN"
+  PingClient:
+    environment: "PingClient"
+  MongoClient:
+    environment: "MongoClient"
